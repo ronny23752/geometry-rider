@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mini Geometry Rider</title>
+<style>
+body { margin:0; overflow:hidden; background:#111; font-family:Arial,sans-serif; }
+canvas { display:block; margin:0 auto; background:#111; }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="800" height="400"></canvas>
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+// --- Konstanten ---
+const GRAVITY = 0.6;
+const JUMP_FORCE = -12;
+const PLAYER_WIDTH = 40;
+const PLAYER_HEIGHT = 20;
+const OBSTACLE_WIDTH = 40;
+const BASELINE = canvas.height-40;
+
+// --- Spielzustände ---
+let state = "start"; // "start", "play", "gameover"
+let score = 0;
+let highscore = localStorage.getItem("riderHighscore") || 0;
+
+// --- Spieler ---
+let player = {x:50, y:BASELINE-PLAYER_HEIGHT, vy:0, onGround:false, angle:0};
+let isHolding = false;
+
+// --- Hindernisse ---
+let obstacles = [];
+let speed = 5;
+
+// --- Hintergrund ---
+let bgStars = [];
+for(let i=0;i<100;i++) bgStars.push({x:Math.random()*canvas.width, y:Math.random()*canvas.height, size:Math.random()*2+1, speed:0.2+Math.random()*0.3});
+
+// --- Funktionen ---
+function spawnObstacle(){
+    let r = Math.random();
+    if(r<0.4){ // normale Blöcke
+        let height = Math.random()*60+20;
+        obstacles.push({x:canvas.width, y:BASELINE-height, width:OBSTACLE_WIDTH, height:height, type:"block"});
+    } else if(r<0.7){ // Rampen
+        let width = 80, height=20;
+        let y = BASELINE-(Math.random()*120+20);
+        obstacles.push({x:canvas.width, y:y, width:width, height:height, type:"ramp"});
+    } else if(r<0.85){ // blaue Hochplattformen
+        let width = 100 + Math.random()*50;
+        let y = BASELINE - (150 + Math.random()*150);
+        obstacles.push({x:canvas.width, y:y, width:width, height:10, type:"bluePlatform"});
+    } else { // Hindernis von oben
+        let width = 40 + Math.random()*30;
+        let height = 20 + Math.random()*30;
+        let y = 20 + Math.random()*100; // ganz oben
+        obstacles.push({x:canvas.width, y:y, width:width, height:height, type:"topBlock"});
+    }
+}
+
+function resetGame(){
+    player.y = BASELINE-PLAYER_HEIGHT; player.vy=0; player.angle=0;
+    obstacles = []; score=0; speed=5; isHolding=false;
+}
+
+function update(){
+    if(state!=="play") return;
+
+    let currentSpeed = speed;
+    if(isHolding && player.onGround) currentSpeed += 2;
+
+    player.vy += GRAVITY;
+    player.y += player.vy;
+    player.onGround = false;
+
+    for(let obs of obstacles){
+        if(obs.type==="block" || obs.type==="topBlock"){
+            if(player.x<obs.x+obs.width && player.x+PLAYER_WIDTH>obs.x &&
+               player.y<obs.y+obs.height && player.y+PLAYER_HEIGHT>obs.y){
+                state="gameover";
+            }
+        } else if(obs.type==="ramp" || obs.type==="bluePlatform"){
+            let rampTopY = obs.type==="ramp"? obs.y - (player.x-obs.x)*(obs.height/obs.width) : obs.y;
+            if(player.y+PLAYER_HEIGHT>rampTopY && player.y+PLAYER_HEIGHT<rampTopY+20 &&
+               player.x+PLAYER_WIDTH>obs.x && player.x<obs.x+obs.width &&
+               player.vy >=0){
+                player.y = rampTopY-PLAYER_HEIGHT;
+                player.vy = 0;
+                player.onGround = true;
+            }
+        }
+    }
+
+    if(player.y+PLAYER_HEIGHT>BASELINE){
+        player.y = BASELINE-PLAYER_HEIGHT;
+        player.vy = 0;
+        player.onGround = true;
+    }
+
+    obstacles = obstacles.filter(obs => obs.x+obs.width>0);
+    obstacles.forEach(obs => obs.x -= currentSpeed);
+
+    score += 0.01;
+    if(Math.random()<0.03) spawnObstacle();
+}
+
+function drawPlayer(){
+    ctx.save();
+    ctx.translate(player.x+PLAYER_WIDTH/2, player.y+PLAYER_HEIGHT/2);
+    ctx.rotate(player.angle);
+    ctx.fillStyle="#0ff"; ctx.shadowColor="#0ff"; ctx.shadowBlur=10;
+    ctx.fillRect(-PLAYER_WIDTH/2+5,-PLAYER_HEIGHT/2,30,20);
+    ctx.shadowBlur=0;
+    ctx.fillStyle="#444"; ctx.beginPath();
+    ctx.arc(-10,12,6,0,Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(20,12,6,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+}
+
+function drawObstacles(){
+    obstacles.forEach(obs=>{
+        if(obs.type==="block"){
+            ctx.fillStyle="#f33"; ctx.fillRect(obs.x,obs.y,obs.width,obs.height);
+            ctx.fillStyle="#b00"; ctx.fillRect(obs.x,obs.y,obs.width/4,obs.height);
+            ctx.strokeStyle="#800"; ctx.strokeRect(obs.x,obs.y,obs.width,obs.height);
+        } else if(obs.type==="ramp"){
+            ctx.fillStyle="#ff0"; ctx.beginPath();
+            ctx.moveTo(obs.x,obs.y+obs.height);
+            ctx.lineTo(obs.x+obs.width,obs.y);
+            ctx.lineTo(obs.x+obs.width,obs.y+obs.height);
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle="#cc0"; ctx.stroke();
+        } else if(obs.type==="bluePlatform"){
+            ctx.fillStyle="#00f";
+            ctx.fillRect(obs.x,obs.y,obs.width,obs.height);
+            ctx.strokeStyle="#005";
+            ctx.strokeRect(obs.x,obs.y,obs.width,obs.height);
+        } else if(obs.type==="topBlock"){
+            ctx.fillStyle="#f33";
+            ctx.fillRect(obs.x,obs.y,obs.width,obs.height);
+            ctx.strokeStyle="#800";
+            ctx.strokeRect(obs.x,obs.y,obs.width,obs.height);
+        }
+    });
+}
+
+function drawBackground(){
+    ctx.fillStyle="#111"; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="#555";
+    bgStars.forEach(star=>{
+        ctx.fillRect(star.x,star.y,star.size,star.size);
+        star.x -= star.speed;
+        if(star.x<0) star.x=canvas.width;
+    });
+    ctx.strokeStyle="#0f0"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(0,BASELINE); ctx.lineTo(canvas.width,BASELINE); ctx.stroke();
+}
+
+function draw(){
+    drawBackground(); drawObstacles(); drawPlayer();
+    ctx.textAlign="left";
+
+    if(state==="start"){
+        ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
+        ctx.fillText("Mini Geometry Rider",canvas.width/2,150);
+        ctx.font="20px Arial"; ctx.fillText("Drücke Space oder tippe, um zu starten",canvas.width/2,200);
+    } else if(state==="play"){
+        ctx.fillStyle="#fff"; ctx.font="20px Arial"; ctx.shadowColor="#0ff"; ctx.shadowBlur=5;
+        ctx.fillText("Score: "+Math.floor(score),10,30);
+        ctx.fillText("Highscore: "+Math.floor(highscore),10,60);
+        ctx.shadowBlur=0;
+    } else if(state==="gameover"){
+        if(score>highscore){ highscore=Math.floor(score); localStorage.setItem("riderHighscore",highscore);}
+        ctx.fillStyle="rgba(0,0,0,0.7)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
+        ctx.fillText("Game Over!",canvas.width/2,canvas.height/2-20);
+        ctx.font="20px Arial";
+        ctx.fillText("Score: "+Math.floor(score),canvas.width/2,canvas.height/2+10);
+        ctx.fillText("Highscore: "+Math.floor(highscore),canvas.width/2,canvas.height/2+40);
+        ctx.fillText("Tippe oder drücke R zum Neustart",canvas.width/2,canvas.height/2+70);
+    }
+}
+
+function gameLoop(){ update(); draw(); requestAnimationFrame(gameLoop); }
+
+// --- Eingaben ---
+document.addEventListener("keydown",(e)=>{
+    if(e.code==="Space" || e.code==="ArrowUp"){
+        if(state==="start"){ state="play"; resetGame(); return; }
+        if(state==="play" && !isHolding) player.vy=JUMP_FORCE;
+        isHolding=true;
+    }
+    if(e.code==="KeyR" && state==="gameover"){ state="start"; }
+});
+document.addEventListener("keyup",(e)=>{ if(e.code==="Space" || e.code==="ArrowUp") isHolding=false; });
+
+document.addEventListener("touchstart",()=>{
+    if(state==="start"){ state="play"; resetGame(); return; }
+    if(state==="gameover"){ state="start"; return; }
+    if(!isHolding) player.vy=JUMP_FORCE;
+    isHolding=true;
+});
+document.addEventListener("touchend",()=>{ isHolding=false; });
+
+gameLoop();
+</script>
+</body>
+</html>
