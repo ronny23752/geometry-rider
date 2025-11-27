@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Jump Game</title>
+<style>
+    body {
+        margin: 0;
+        background: #111;
+        overflow: hidden;
+        user-select: none;
+    }
+
+    canvas {
+        background: #222;
+        display: block;
+        margin: 0 auto;
+    }
+
+    /* --- Overlay Screens --- */
+
+    .overlay {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0,0,0,0.85);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-family: Arial;
+        gap: 20px;
+    }
+
+    .hidden { display: none !important; }
+
+    #shopItems div {
+        border: 2px solid white;
+        padding: 10px;
+        width: 220px;
+        cursor: pointer;
+        text-align: center;
+        font-size: 20px;
+    }
+
+    button {
+        padding: 15px 30px;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+        border-radius: 6px;
+    }
+</style>
+</head>
+<body>
+
+<canvas id="game" width="900" height="500"></canvas>
+
+<!-- START SCREEN -->
+<div id="startScreen" class="overlay">
+    <h1>Jump Game</h1>
+    <button onclick="startGame()">Start</button>
+    <button onclick="showShop()">Shop</button>
+    <button onclick="quitGame()">Beenden</button>
+</div>
+
+<!-- SHOP SCREEN -->
+<div id="shopScreen" class="overlay hidden">
+    <h2>Shop</h2>
+    <div id="shopItems"></div>
+    <button onclick="closeShop()">Zurück</button>
+</div>
+
+<script>
+
+// ================================
+// --- KONSTANTEN & VARIABLEN ---
+// ================================
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const PLAYER_WIDTH = 40;
+const PLAYER_HEIGHT = 40;
+
+let player = {
+    x: 100,
+    y: 300,
+    vx: 0,
+    vy: 0,
+    onGround: false
+};
+
+// --- Farben für Shop ---
+const COLORS = [
+    { name: "Grün", price: 0, id: "green" },
+    { name: "Rot", price: 50, id: "red" },
+    { name: "Blau", price: 100, id: "blue" },
+    { name: "Orange", price: 400, id: "orange" },
+    { name: "Lila", price: 1200, id: "purple" },
+    { name: "Gelb", price: 1800, id: "yellow" },
+    { name: "Silber", price: 2300, id: "silver" },
+    { name: "Gold", price: 5800, id: "gold" },
+    { name: "Diamant", price: 11850, id: "cyan" },
+    { name: "Smaragd", price: 32500, id: "lime" }
+];
+
+// --- Fortschritt laden ---
+let coins = Number(localStorage.getItem("coins") || 0);
+let unlockedIndex = Number(localStorage.getItem("unlockedIndex") || 0);
+let currentColor = localStorage.getItem("currentColor") || "green";
+
+let jumpsLeft = 2;
+let keys = {};
+let gameRunning = false;
+
+// --- Hindernisse (Boden, Gelb, Blau) ---
+let obstacles = [
+    { x: 0, y: 450, width: 2000, height: 50, type: "ground" },
+    { x: 300, y: 380, width: 120, height: 20, type: "yellow" },
+    { x: 500, y: 300, width: 120, height: 20, type: "blue" }
+];
+
+// --- Münzen ---
+let coinsArray = [
+    { x: 350, y: 330 },
+    { x: 520, y: 250 },
+    { x: 800, y: 420 }
+];
+
+// ================================
+// --------- START SCREEN ---------
+// ================================
+
+function startGame() {
+    document.getElementById("startScreen").classList.add("hidden");
+    gameRunning = true;
+}
+
+function quitGame() {
+    gameRunning = false;
+    alert("Spiel beendet.");
+    location.reload();
+}
+
+// ================================
+// ------------ SHOP -------------
+// ================================
+
+function showShop() {
+    document.getElementById("shopScreen").classList.remove("hidden");
+    fillShopItems();
+}
+
+function closeShop() {
+    document.getElementById("shopScreen").classList.add("hidden");
+}
+
+function fillShopItems() {
+    let container = document.getElementById("shopItems");
+    container.innerHTML = "";
+
+    COLORS.forEach((c, i) => {
+        let div = document.createElement("div");
+        let owned = i <= unlockedIndex;
+
+        div.style.borderColor = c.id;
+
+        div.innerHTML = `<b>${c.name}</b> – $${c.price} ${owned ? "(✔️)" : ""}`;
+        div.onclick = () => handleShopClick(i);
+
+        container.appendChild(div);
+    });
+}
+
+function handleShopClick(index) {
+
+    // Farbe wechseln
+    if (index <= unlockedIndex) {
+        currentColor = COLORS[index].id;
+        localStorage.setItem("currentColor", currentColor);
+        alert("Farbe gewechselt!");
+        return;
+    }
+
+    // Reihenfolge
+    if (index !== unlockedIndex + 1) {
+        alert("Du musst erst vorherige Farben kaufen!");
+        return;
+    }
+
+    // Geld prüfen
+    let price = COLORS[index].price;
+    if (coins < price) {
+        alert("Zu wenig Coins!");
+        return;
+    }
+
+    // Kauf
+    coins -= price;
+    unlockedIndex = index;
+
+    currentColor = COLORS[index].id;
+
+    localStorage.setItem("coins", coins);
+    localStorage.setItem("unlockedIndex", unlockedIndex);
+    localStorage.setItem("currentColor", currentColor);
+
+    alert("Gekauft: " + COLORS[index].name);
+    fillShopItems();
+}
+
+// ================================
+// --------- STEUERUNG -----------
+// ================================
+
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup",   e => keys[e.key] = false);
+
+// ================================
+// --------- PHYSIK --------------
+// ================================
+
+function update() {
+
+    if (!gameRunning) {
+        requestAnimationFrame(update);
+        return;
+    }
+
+    // Schwerkraft
+    player.vy += 0.5;
+
+    // Bewegung
+    if (keys["a"] || keys["ArrowLeft"])  player.x -= 4;
+    if (keys["d"] || keys["ArrowRight"]) player.x += 4;
+
+    // Sprung
+    if ((keys["w"] || keys["ArrowUp"]) && jumpsLeft > 0) {
+        player.vy = -10;
+        jumpsLeft--;
+        keys["w"] = false;
+        keys["ArrowUp"] = false;
+    }
+
+    // Position aktualisieren
+    player.x += player.vx;
+    player.y += player.vy;
+
+    // --- Hindernis Kollisionen ---
+    for (let obs of obstacles) {
+        if (
+            player.x < obs.x + obs.width &&
+            player.x + PLAYER_WIDTH > obs.x &&
+            player.y + PLAYER_HEIGHT > obs.y &&
+            player.y + PLAYER_HEIGHT < obs.y + 25 &&
+            player.vy >= 0
+        ) {
+            // Landen
+            player.y = obs.y - PLAYER_HEIGHT;
+            player.vy = 0;
+            player.onGround = true;
+            jumpsLeft = 2;   // RESET AUCH FÜR GELB + BLAU
+        }
+    }
+
+    // --- Münzen sammeln ---
+    for (let i = coinsArray.length - 1; i >= 0; i--) {
+        let c = coinsArray[i];
+
+        if (
+            player.x < c.x + 20 &&
+            player.x + PLAYER_WIDTH > c.x &&
+            player.y < c.y + 20 &&
+            player.y + PLAYER_HEIGHT > c.y
+        ) {
+            coins++;
+            localStorage.setItem("coins", coins);
+            coinsArray.splice(i, 1);
+        }
+    }
+
+    draw();
+    requestAnimationFrame(update);
+}
+
+// ================================
+// ------------ DRAW -------------
+// ================================
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Hindernisse
+    for (let obs of obstacles) {
+        ctx.fillStyle =
+            obs.type === "ground" ? "#444" :
+            obs.type === "yellow" ? "yellow" :
+            obs.type === "blue"   ? "blue" : "white";
+
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+    }
+
+    // Münzen
+    ctx.fillStyle = "gold";
+    for (let c of coinsArray) {
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Spieler
+    ctx.fillStyle = currentColor;
+    ctx.fillRect(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
+
+    // Coin-Anzeige
+    ctx.fillStyle = "#fff";
+    ctx.font = "22px Arial";
+    ctx.fillText("Coins: " + coins, 20, 30);
+}
+
+update();
+
+</script>
+</body>
+</html>
