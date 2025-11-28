@@ -76,6 +76,9 @@ function update(){
     player.vy += GRAVITY;
     player.y += player.vy;
     player.onGround = false;
+    if (player.y < 0) {
+    player.y = 0;
+    player.vy = 0;
 
     for(let obs of obstacles){
         if(obs.type==="block" || obs.type==="topBlock"){
