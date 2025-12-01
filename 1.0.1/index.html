@@ -5,43 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mini Geometry Rider</title>
 <style>
-body { margin:0; overflow:hidden; background:#111; font-family:Arial, sans-serif; cursor: url("cursor.png") 4 4, auto; }
+body { margin:0; overflow:hidden; background:#111; font-family:Arial,sans-serif; cursor: url("cursor.png") 4 4, auto; }
 canvas { display:block; margin:0 auto; background:#111; }
-
-#shopOverlay {
-    position:absolute; top:50px; left:50%; transform:translateX(-50%);
-    width:700px; max-height:400px; background:rgba(0,0,0,0.85);
-    border:2px solid #0f0; border-radius:10px; padding:10px;
-    overflow-y:auto; display:none; z-index:10;
-}
-.carItem {
-    display:flex; align-items:center; margin:5px 0; padding:5px; border-radius:5px; background:#222;
-}
-.colorBox { width:50px; height:30px; margin-right:10px; border-radius:5px; border:2px solid #000; }
-.carInfo { flex:1; color:#fff; }
-.carButton { background:#0f0; border:none; padding:5px 10px; margin-left:10px; cursor:pointer; border-radius:5px; }
-.closeBtn { background:#f33; color:#fff; margin-bottom:10px; padding:5px 10px; border:none; border-radius:5px; cursor:pointer; }
-.dailyBtn { background:#222; color:#fff; padding:5px 10px; margin:10px 0; border:none; cursor:pointer; width:100%; border-radius:5px; }
 </style>
 </head>
 <body>
 <canvas id="gameCanvas" width="800" height="400"></canvas>
-
-<div id="shopOverlay">
-    <button class="closeBtn" id="closeShop">Schließen</button>
-    <h2 style="color:white; text-align:center;">AutoShop</h2>
-    <p id="coinsText" style="text-align:center; color:white;"></p>
-    <div id="carsContainer"></div>
-    <button class="dailyBtn" id="dailyCoinsBtn">Tägliche Münzen +30</button>
-</div>
-
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// ---------------------------
-// Konstanten
-// ---------------------------
+// --- Konstanten ---
 const GRAVITY = 0.6;
 const JUMP_FORCE = -12;
 const PLAYER_WIDTH = 40;
@@ -51,24 +25,26 @@ const BASELINE = canvas.height-40;
 const COIN_RADIUS = 10;
 const DAILY_COINS = 30;
 
-// ---------------------------
-// Spielvariablen
-// ---------------------------
+// --- Spielzustände ---
 let state = "start"; // start, play, gameover
 let score = 0;
 let highscore = parseInt(localStorage.getItem("riderHighscore")) || 0;
-let coinsOwned = parseInt(localStorage.getItem("coinsOwned")) || 0;
 
-// Spieler
-let player = { x:50, y:BASELINE-PLAYER_HEIGHT, vy:0, onGround:false, angle:0 };
+// --- Spieler ---
+let player = {x:50, y:BASELINE-PLAYER_HEIGHT, vy:0, onGround:false};
 let isHolding = false;
 
-// Obstacles & Coins
+// --- Hindernisse / Münzen ---
 let obstacles = [];
 let coins = [];
 let speed = 5;
+let coinsOwned = parseInt(localStorage.getItem("coinsOwned")) || 0;
 
-// Autos / Shop
+// --- Hintergrund ---
+let bgStars = [];
+for(let i=0;i<100;i++) bgStars.push({x:Math.random()*canvas.width, y:Math.random()*canvas.height, size:Math.random()*2+1, speed:0.2+Math.random()*0.3});
+
+// --- Autos / Shop ---
 let cars = [
     {name:"Grün", price:0, color:"#0f0", rarity:"Standard"},
     {name:"Rot", price:50, color:"#f00", rarity:"Selten"},
@@ -86,6 +62,8 @@ let cars = [
     {name:"Topas", price:204800, color:"#fa0", rarity:"Legendär"},
     {name:"Ametyst", price:409600, color:"#a0f", rarity:"Oktopus"},
     {name:"Oktopus", price:819200, color:"#00a", rarity:"Oktopus"},
+    {name:"Solarstorm X", price:8500, color:"#f90", rarity:"Legendär"},
+    {name:"Okto-Prime", price:15800, color:"#0ff", rarity:"Oktopus"},
     {name:"Saphir", price:900, color:"#00a", rarity:"Selten"},
     {name:"Türkis", price:1200, color:"#0ff", rarity:"Selten"},
     {name:"Koralle", price:2000, color:"#f66", rarity:"Episch"},
@@ -99,55 +77,17 @@ let cars = [
 ];
 let ownedCars = JSON.parse(localStorage.getItem("ownedCars")) || [0];
 let selectedCar = parseInt(localStorage.getItem("selectedCar")) || 0;
+let inShop = false;
 
-// Shop Overlay
-const shopOverlay = document.getElementById("shopOverlay");
-const coinsText = document.getElementById("coinsText");
-const carsContainer = document.getElementById("carsContainer");
-const closeShopBtn = document.getElementById("closeShop");
-const dailyCoinsBtn = document.getElementById("dailyCoinsBtn");
+// --- Tägliche Münzen ---
+let lastDailyClaim = parseInt(localStorage.getItem("lastDailyClaim")) || 0;
 
-// ---------------------------
-// Funktionen
-// ---------------------------
-function getRarityColor(r){switch(r){case"Standard":return"#0f0";case"Selten":return"#00f";case"Episch":return"#a0f";case"Mythisch":return"#fa0";case"Legendär":return"#ff0";case"Oktopus":return"#0ff";default:return"#fff";}}
+// --- Shop Buttons ---
+let shopButton = {x:canvas.width-110, y:10, width:100, height:40};
+let closeButton = {x:670, y:60, width:30, height:30};
+let dailyButton = {x:300, y:300, width:200, height:40};
 
-// Shop aktualisieren
-function refreshShop(){
-    coinsText.innerText = `Deine Münzen: ${coinsOwned}`;
-    carsContainer.innerHTML = "";
-    cars.forEach((car,i)=>{
-        let div = document.createElement("div"); div.className="carItem";
-        let color = document.createElement("div"); color.className="colorBox"; color.style.background=car.color;
-        let info = document.createElement("div"); info.className="carInfo";
-        info.innerText = `${car.name} [${car.rarity}] - ${car.price} Münzen` + (ownedCars.includes(i)?" (Besitzt)":"") + (selectedCar===i?" <- Ausgewählt":"");
-        let btn = document.createElement("button"); btn.className="carButton";
-        if(ownedCars.includes(i)){ btn.innerText = selectedCar===i?"Ausgewählt":"Wählen"; } else { btn.innerText="Kaufen"; }
-        btn.onclick = ()=>{
-            if(!ownedCars.includes(i)){
-                if(coinsOwned>=car.price){ coinsOwned-=car.price; ownedCars.push(i); localStorage.setItem("coinsOwned",coinsOwned); localStorage.setItem("ownedCars",JSON.stringify(ownedCars)); }
-                else { alert("Nicht genug Münzen!"); return; }
-            }
-            selectedCar=i; localStorage.setItem("selectedCar",selectedCar);
-            refreshShop();
-        };
-        div.appendChild(color); div.appendChild(info); div.appendChild(btn);
-        carsContainer.appendChild(div);
-    });
-}
-
-// Tägliche Münzen
-dailyCoinsBtn.onclick = ()=>{
-    let last = parseInt(localStorage.getItem("lastDailyClaim")) || 0;
-    let now = Date.now();
-    if(now-last>24*60*60*1000){ coinsOwned+=30; localStorage.setItem("coinsOwned",coinsOwned); localStorage.setItem("lastDailyClaim", now); alert("Du hast 30 Münzen erhalten!"); refreshShop(); }
-    else { let remaining=24*60*60*1000-(now-last); let hours=Math.floor(remaining/3600000); let minutes=Math.floor((remaining%3600000)/60000); alert(`Nächste Münzen in ${hours}h ${minutes}m`); }
-};
-closeShopBtn.onclick = ()=>{ shopOverlay.style.display="none"; };
-
-// ---------------------------
-// Obstacles & Coins Spawn
-// ---------------------------
+// --- Funktionen ---
 function spawnObstacle(){
     let r = Math.random();
     if(r<0.4){ let height=Math.random()*60+20; obstacles.push({x:canvas.width, y:BASELINE-height, width:OBSTACLE_WIDTH, height:height, type:"block"});}
@@ -157,46 +97,45 @@ function spawnObstacle(){
     if(Math.random()<0.2){ let y=BASELINE-(50+Math.random()*100); coins.push({x:canvas.width, y:y});}
 }
 
-// ---------------------------
-// Game Reset
-// ---------------------------
-function resetGame(){ player.y=BASELINE-PLAYER_HEIGHT; player.vy=0; player.angle=0; obstacles=[]; coins=[]; score=0; speed=5; isHolding=false; }
+function resetGame(){ player.y=BASELINE-PLAYER_HEIGHT; player.vy=0; obstacles=[]; coins=[]; score=0; speed=5; isHolding=false;}
+
+function claimDailyCoins() {
+    let now=Date.now();
+    if(now-lastDailyClaim>24*60*60*1000){
+        coinsOwned += DAILY_COINS;
+        lastDailyClaim = now;
+        localStorage.setItem("coinsOwned",coinsOwned);
+        localStorage.setItem("lastDailyClaim",lastDailyClaim);
+        alert(`Du hast ${DAILY_COINS} Münzen erhalten!`);
+    } else {
+        let remaining=24*60*60*1000-(now-lastDailyClaim);
+        let hours=Math.floor(remaining/3600000);
+        let minutes=Math.floor((remaining%3600000)/60000);
+        alert(`Du kannst die nächsten Münzen in ${hours}h ${minutes}m abholen.`);
+    }
+}
+
+function getRarityColor(r){switch(r){case"Standard":return"#0f0";case"Selten":return"#00f";case"Episch":return"#a0f";case"Mythisch":return"#fa0";case"Legendär":return"#ff0";case"Oktopus":return"#0ff";default:return"#fff";}}
 
 function update(){
     if(state!=="play") return;
 
-    // Schwerkraft anwenden
     player.vy += GRAVITY;
     player.y += player.vy;
-    player.onGround = false;
+    player.onGround=false;
 
-    // Bodenbegrenzung
-    if(player.y + PLAYER_HEIGHT > BASELINE){
-        player.y = BASELINE - PLAYER_HEIGHT;
-        player.vy = 0;
-        player.onGround = true;
-    }
+    // Oben/untere Grenze
+    if(player.y + PLAYER_HEIGHT > BASELINE){ player.y = BASELINE-PLAYER_HEIGHT; player.vy=0; player.onGround=true; }
+    if(player.y<0){ player.y=0; player.vy=0; }
 
-    // Decke
-    if(player.y < 0){
-        player.y = 0;
-        player.vy = 0;
-    }
-
-    // Hindernisse & Rampen prüfen
+    // Hindernisse prüfen
     for(let obs of obstacles){
         if(obs.type==="block"||obs.type==="topBlock"){
-            if(player.x < obs.x + obs.width && player.x + PLAYER_WIDTH > obs.x &&
-               player.y < obs.y + obs.height && player.y + PLAYER_HEIGHT > obs.y){
-                state="gameover";
-            }
+            if(player.x<obs.x+obs.width && player.x+PLAYER_WIDTH>obs.x && player.y<obs.y+obs.height && player.y+PLAYER_HEIGHT>obs.y) state="gameover";
         } else if(obs.type==="ramp"||obs.type==="bluePlatform"){
             let rampTopY = obs.type==="ramp"? obs.y-(player.x-obs.x)*(obs.height/obs.width) : obs.y;
-            if(player.y+PLAYER_HEIGHT>rampTopY && player.y+PLAYER_HEIGHT<rampTopY+20 &&
-               player.x+PLAYER_WIDTH>obs.x && player.x<obs.x+obs.width && player.vy>=0){
-                player.y = rampTopY - PLAYER_HEIGHT;
-                player.vy = 0;
-                player.onGround = true;
+            if(player.y+PLAYER_HEIGHT>rampTopY && player.y+PLAYER_HEIGHT<rampTopY+20 && player.x+PLAYER_WIDTH>obs.x && player.x<obs.x+obs.width && player.vy>=0){
+                player.y = rampTopY-PLAYER_HEIGHT; player.vy=0; player.onGround=true;
             }
         }
     }
@@ -204,46 +143,164 @@ function update(){
     let currentSpeed = speed; 
     if(isHolding && player.onGround) currentSpeed += 2;
 
-    // Coins
     coins = coins.filter(c=>{
-        let dx = (player.x+PLAYER_WIDTH/2)-c.x;
-        let dy = (player.y+PLAYER_HEIGHT/2)-c.y;
-        let dist = Math.sqrt(dx*dx+dy*dy);
-        if(dist < COIN_RADIUS+Math.max(PLAYER_WIDTH,PLAYER_HEIGHT)/2){
-            score += 1;
-            coinsOwned += 1;
-            localStorage.setItem("coinsOwned",coinsOwned);
-            return false;
-        }
-        c.x -= currentSpeed; 
-        return c.x + COIN_RADIUS > 0;
+        let dx=(player.x+PLAYER_WIDTH/2)-c.x; let dy=(player.y+PLAYER_HEIGHT/2)-c.y; let dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<COIN_RADIUS+Math.max(PLAYER_WIDTH,PLAYER_HEIGHT)/2){ score+=1; coinsOwned+=1; localStorage.setItem("coinsOwned",coinsOwned); return false; }
+        c.x -= currentSpeed; return c.x+COIN_RADIUS>0;
     });
 
-    obstacles = obstacles.filter(obs=>obs.x+obs.width>0);
-    obstacles.forEach(obs=>obs.x-=currentSpeed);
-
+    obstacles = obstacles.filter(obs=>obs.x+obs.width>0); obstacles.forEach(obs=>obs.x-=currentSpeed);
     score += 0.01;
-    if(Math.random() < 0.03) spawnObstacle();
+    if(Math.random()<0.03) spawnObstacle();
 }
 
-// Sprung-Input: beliebig viele Sprünge
+// --- Zeichnen ---
+function drawPlayer(){
+    ctx.save(); ctx.translate(player.x+PLAYER_WIDTH/2,player.y+PLAYER_HEIGHT/2);
+    ctx.fillStyle=cars[selectedCar].color; ctx.shadowColor=cars[selectedCar].color; ctx.shadowBlur=10;
+    ctx.fillRect(-PLAYER_WIDTH/2+5,-PLAYER_HEIGHT/2,30,20);
+    ctx.shadowBlur=0; ctx.fillStyle="#444";
+    ctx.beginPath(); ctx.arc(-10,12,6,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(20,12,6,0,Math.PI*2); ctx.fill(); ctx.restore();
+}
+
+function drawObstacles(){ obstacles.forEach(obs=>{
+    if(obs.type==="block"||obs.type==="topBlock"){ctx.fillStyle="#f33"; ctx.fillRect(obs.x,obs.y,obs.width,obs.height);}
+    else if(obs.type==="ramp"){ctx.fillStyle="#ff0"; ctx.beginPath(); ctx.moveTo(obs.x,obs.y+obs.height); ctx.lineTo(obs.x+obs.width,obs.y); ctx.lineTo(obs.x+obs.width,obs.y+obs.height); ctx.closePath(); ctx.fill();}
+    else if(obs.type==="bluePlatform"){ctx.fillStyle="#00f"; ctx.fillRect(obs.x,obs.y,obs.width,obs.height);}
+});}
+
+function drawCoins(){ coins.forEach(c=>{ ctx.fillStyle="#f90"; ctx.beginPath(); ctx.arc(c.x,c.y,COIN_RADIUS,0,Math.PI*2); ctx.fill(); ctx.strokeStyle="#ff6600"; ctx.stroke(); }); }
+
+function drawBackground(){
+    ctx.fillStyle="#111"; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="#555"; bgStars.forEach(star=>{ctx.fillRect(star.x,star.y,star.size,star.size); star.x-=star.speed; if(star.x<0) star.x=canvas.width;});
+    ctx.strokeStyle="#0f0"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,BASELINE); ctx.lineTo(canvas.width,BASELINE); ctx.stroke();
+}
+
+// --- Shop Input ---
+function handleShopClick(x,y){
+    if(x>closeButton.x && x<closeButton.x+closeButton.width && y>closeButton.y && y<closeButton.y+closeButton.height){ inShop=false; return; }
+    cars.forEach((car,i)=>{
+        let yPos = 130 + i*50;
+        if(x>150 && x<200 && y>yPos && y<yPos+30){
+            if(!ownedCars.includes(i) && coinsOwned>=car.price){ coinsOwned-=car.price; ownedCars.push(i); localStorage.setItem("ownedCars",JSON.stringify(ownedCars)); localStorage.setItem("coinsOwned",coinsOwned); }
+            selectedCar=i; localStorage.setItem("selectedCar",selectedCar);
+        }
+    });
+    if(x>dailyButton.x && x<dailyButton.x+dailyButton.width && y>dailyButton.y && y<dailyButton.y+dailyButton.height) claimDailyCoins();
+}
+
+// --- Zeichnen ---
+function draw(){
+    drawBackground(); drawObstacles(); drawCoins(); drawPlayer();
+
+    if(state==="start"){
+        ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center"; ctx.fillText("Mini Geometry Rider",canvas.width/2,150);
+        ctx.font="20px Arial"; ctx.fillText("Drücke Space oder tippe, um zu starten",canvas.width/2,200);
+
+        // Shop Button
+        ctx.fillStyle="#222"; ctx.fillRect(shopButton.x,shopButton.y,shopButton.width,shopButton.height);
+        ctx.fillStyle="#fff"; ctx.textAlign="center"; ctx.font="20px Arial";
+        ctx.fillText("Shop", shopButton.x+shopButton.width/2, shopButton.y+26);
+    } else if(state==="play"){
+        ctx.fillStyle="#fff"; ctx.font="20px Arial"; ctx.shadowColor="#0ff"; ctx.shadowBlur=5;
+        ctx.fillText("Score: "+Math.floor(score),10,30);
+        ctx.fillText("Highscore: "+Math.floor(highscore),10,60);
+        ctx.fillText("Münzen: "+coinsOwned,10,90); ctx.shadowBlur=0;
+    } else if(state==="gameover"){
+        if(score>highscore){ highscore=Math.floor(score); localStorage.setItem("riderHighscore",highscore);}
+        ctx.fillStyle="rgba(0,0,0,0.7)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center"; ctx.fillText("Game Over!",canvas.width/2,canvas.height/2-20);
+        ctx.font="20px Arial";
+        ctx.fillText("Score: "+Math.floor(score),canvas.width/2,canvas.height/2+10);
+        ctx.fillText("Highscore: "+Math.floor(highscore),canvas.width/2,canvas.height/2+40);
+        ctx.fillText("Tippe oder drücke R zum Neustart",canvas.width/2,canvas.height/2+70);
+    }
+
+    // Shop Overlay
+    if(inShop){
+        ctx.fillStyle="rgba(0,0,0,0.85)";
+        ctx.fillRect(100,50,600,320);
+        ctx.fillStyle="#fff"; ctx.font="30px Arial"; ctx.textAlign="center"; ctx.fillText("AutoShop", canvas.width/2, 90);
+
+        // Close Button
+        ctx.fillStyle="#900"; ctx.fillRect(closeButton.x,closeButton.y,closeButton.width,closeButton.height);
+        ctx.fillStyle="#fff"; ctx.font="20px Arial"; ctx.fillText("X", closeButton.x+closeButton.width/2, closeButton.y+22);
+
+        // Autos
+        ctx.font="20px Arial"; ctx.textAlign="left";
+        cars.forEach((car,i)=>{
+            let yPos=130+i*50;
+            ctx.fillStyle=getRarityColor(car.rarity);
+            ctx.fillRect(150,yPos,50,30);
+            ctx.fillStyle="#fff";
+            ctx.fillText(`${car.name} [${car.rarity}] - ${car.price} Münzen${ownedCars.includes(i)?" (Besitzt)":" "}${selectedCar===i?" <- Ausgewählt":""}`,220,yPos+20);
+        });
+
+        // Tägliche Münzen Button
+        ctx.fillStyle="#222"; ctx.fillRect(dailyButton.x, dailyButton.y, dailyButton.width, dailyButton.height);
+        ctx.fillStyle="#fff"; ctx.fillText("Tägliche Münzen +30", dailyButton.x+dailyButton.width/2, dailyButton.y+30);
+        ctx.textAlign="center";
+        ctx.fillText(`Deine Münzen: ${coinsOwned}`, canvas.width/2, 360);
+    }
+}
+
+// --- Game Loop ---
+function gameLoop(){ update(); draw(); requestAnimationFrame(gameLoop); }
+
+// --- Eingaben ---
 document.addEventListener("keydown",(e)=>{
-    if(e.code==="Space"||e.code==="ArrowUp"){
+    if(e.code==="Space"||e.code==="ArrowUp"){ 
         if(state==="start"){ state="play"; resetGame(); return; }
-        player.vy = JUMP_FORCE;
-        isHolding = true;
+        player.vy=JUMP_FORCE; isHolding=true;
+    }
+    if(e.code==="KeyR" && state==="gameover"){ state="start"; }
+    if(e.code==="KeyS" && state==="start"){ inShop=!inShop; }
+
+    if(inShop && e.code.startsWith("Digit")){
+        let idx=parseInt(e.code.replace("Digit",""))-1;
+        if(idx>=0&&idx<cars.length){
+            if(!ownedCars.includes(idx) && coinsOwned>=cars[idx].price){ coinsOwned-=cars[idx].price; ownedCars.push(idx); localStorage.setItem("ownedCars",JSON.stringify(ownedCars)); localStorage.setItem("coinsOwned",coinsOwned);}
+            selectedCar=idx; localStorage.setItem("selectedCar",selectedCar);
+        }
     }
 });
+
 document.addEventListener("keyup",(e)=>{ if(e.code==="Space"||e.code==="ArrowUp") isHolding=false; });
 
 canvas.addEventListener("touchstart",(e)=>{
-    if(state==="start"){ state="play"; resetGame(); return; }
-    player.vy = JUMP_FORCE;
-    isHolding = true;
+    let touch=e.touches[0];
+    let rect=canvas.getBoundingClientRect();
+    let x=touch.clientX-rect.left;
+    let y=touch.clientY-rect.top;
+
+    if(state==="start"){ 
+        if(x>shopButton.x && x<shopButton.x+shopButton.width && y>shopButton.y && y<shopButton.y+shopButton.height){ inShop=true; return; }
+        state="play"; resetGame(); return;
+    }
+    if(state==="gameover"){ state="start"; return; }
+
+    player.vy=JUMP_FORCE; isHolding=true;
+    if(inShop) handleShopClick(x,y);
 });
+
 canvas.addEventListener("touchend",()=>{ isHolding=false; });
 
+canvas.addEventListener("mousedown",(e)=>{
+    let rect=canvas.getBoundingClientRect();
+    let x=e.clientX-rect.left; let y=e.clientY-rect.top;
 
+    if(state==="start"){ 
+        if(x>shopButton.x && x<shopButton.x+shopButton.width && y>shopButton.y && y<shopButton.y+shopButton.height){ inShop=true; return; }
+        state="play"; resetGame(); return;
+    }
+    if(state==="gameover"){ state="start"; return; }
+
+    if(inShop) handleShopClick(x,y);
+});
+
+gameLoop();
 </script>
 </body>
 </html>
