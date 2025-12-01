@@ -162,128 +162,87 @@ function spawnObstacle(){
 // ---------------------------
 function resetGame(){ player.y=BASELINE-PLAYER_HEIGHT; player.vy=0; player.angle=0; obstacles=[]; coins=[]; score=0; speed=5; isHolding=false; }
 
-// ---------------------------
-// Update
-// ---------------------------
 function update(){
     if(state!=="play") return;
-    player.vy += GRAVITY; player.y += player.vy; player.onGround=false;
 
+    // Schwerkraft anwenden
+    player.vy += GRAVITY;
+    player.y += player.vy;
+    player.onGround = false;
+
+    // Bodenbegrenzung
+    if(player.y + PLAYER_HEIGHT > BASELINE){
+        player.y = BASELINE - PLAYER_HEIGHT;
+        player.vy = 0;
+        player.onGround = true;
+    }
+
+    // Decke
+    if(player.y < 0){
+        player.y = 0;
+        player.vy = 0;
+    }
+
+    // Hindernisse & Rampen prüfen
     for(let obs of obstacles){
         if(obs.type==="block"||obs.type==="topBlock"){
-            if(player.x<obs.x+obs.width && player.x+PLAYER_WIDTH>obs.x && player.y<obs.y+obs.height && player.y+PLAYER_HEIGHT>obs.y) state="gameover";
+            if(player.x < obs.x + obs.width && player.x + PLAYER_WIDTH > obs.x &&
+               player.y < obs.y + obs.height && player.y + PLAYER_HEIGHT > obs.y){
+                state="gameover";
+            }
         } else if(obs.type==="ramp"||obs.type==="bluePlatform"){
-            let rampTopY= obs.type==="ramp"? obs.y-(player.x-obs.x)*(obs.height/obs.width): obs.y;
-            if(player.y+PLAYER_HEIGHT>rampTopY && player.y+PLAYER_HEIGHT<rampTopY+20 && player.x+PLAYER_WIDTH>obs.x && player.x<obs.x+obs.width && player.vy>=0){player.y=rampTopY-PLAYER_HEIGHT; player.vy=0; player.onGround=true;}
+            let rampTopY = obs.type==="ramp"? obs.y-(player.x-obs.x)*(obs.height/obs.width) : obs.y;
+            if(player.y+PLAYER_HEIGHT>rampTopY && player.y+PLAYER_HEIGHT<rampTopY+20 &&
+               player.x+PLAYER_WIDTH>obs.x && player.x<obs.x+obs.width && player.vy>=0){
+                player.y = rampTopY - PLAYER_HEIGHT;
+                player.vy = 0;
+                player.onGround = true;
+            }
         }
     }
-    if(player.y+PLAYER_HEIGHT>BASELINE){player.y=BASELINE-PLAYER_HEIGHT; player.vy=0; player.onGround=true;}
 
-    let currentSpeed=speed; if(isHolding && player.onGround) currentSpeed+=2;
+    let currentSpeed = speed; 
+    if(isHolding && player.onGround) currentSpeed += 2;
 
+    // Coins
     coins = coins.filter(c=>{
-        let dx=(player.x+PLAYER_WIDTH/2)-c.x; let dy=(player.y+PLAYER_HEIGHT/2)-c.y; let dist=Math.sqrt(dx*dx+dy*dy);
-        if(dist<COIN_RADIUS+Math.max(PLAYER_WIDTH,PLAYER_HEIGHT)/2){ score+=1; coinsOwned+=1; localStorage.setItem("coinsOwned",coinsOwned); return false; }
-        c.x -= currentSpeed; return c.x+COIN_RADIUS>0;
+        let dx = (player.x+PLAYER_WIDTH/2)-c.x;
+        let dy = (player.y+PLAYER_HEIGHT/2)-c.y;
+        let dist = Math.sqrt(dx*dx+dy*dy);
+        if(dist < COIN_RADIUS+Math.max(PLAYER_WIDTH,PLAYER_HEIGHT)/2){
+            score += 1;
+            coinsOwned += 1;
+            localStorage.setItem("coinsOwned",coinsOwned);
+            return false;
+        }
+        c.x -= currentSpeed; 
+        return c.x + COIN_RADIUS > 0;
     });
-    obstacles = obstacles.filter(obs=>obs.x+obs.width>0); obstacles.forEach(obs=>obs.x-=currentSpeed);
+
+    obstacles = obstacles.filter(obs=>obs.x+obs.width>0);
+    obstacles.forEach(obs=>obs.x-=currentSpeed);
 
     score += 0.01;
-    if(Math.random()<0.03) spawnObstacle();
+    if(Math.random() < 0.03) spawnObstacle();
 }
 
-// ---------------------------
-// Draw
-// ---------------------------
-function drawBackground(){
-    ctx.fillStyle="#111"; ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.strokeStyle="#0f0"; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(0,BASELINE); ctx.lineTo(canvas.width,BASELINE); ctx.stroke();
-}
-
-function drawPlayer(){
-    ctx.save();
-    ctx.translate(player.x+PLAYER_WIDTH/2, player.y+PLAYER_HEIGHT/2);
-    ctx.rotate(player.angle);
-    ctx.fillStyle=cars[selectedCar].color;
-    ctx.fillRect(-PLAYER_WIDTH/2+5,-PLAYER_HEIGHT/2,30,20);
-    ctx.restore();
-}
-
-function drawObstacles(){
-    obstacles.forEach(obs=>{
-        if(obs.type==="block"||obs.type==="topBlock"){ctx.fillStyle="#f33"; ctx.fillRect(obs.x,obs.y,obs.width,obs.height);}
-        else if(obs.type==="ramp"){ctx.fillStyle="#ff0"; ctx.beginPath(); ctx.moveTo(obs.x,obs.y+obs.height); ctx.lineTo(obs.x+obs.width,obs.y); ctx.lineTo(obs.x+obs.width,obs.y+obs.height); ctx.closePath(); ctx.fill();}
-        else if(obs.type==="bluePlatform"){ctx.fillStyle="#00f"; ctx.fillRect(obs.x,obs.y,obs.width,obs.height);}
-    });
-}
-
-function drawCoins(){
-    coins.forEach(c=>{ ctx.fillStyle="#f90"; ctx.beginPath(); ctx.arc(c.x,c.y,COIN_RADIUS,0,Math.PI*2); ctx.fill(); });
-}
-
-function draw(){
-    drawBackground(); drawObstacles(); drawCoins(); drawPlayer();
-    if(state==="start"){
-        ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
-        ctx.fillText("Mini Geometry Rider",canvas.width/2,150);
-        ctx.font="20px Arial"; ctx.fillText("Drücke Space oder tippe, um zu starten",canvas.width/2,200);
-        ctx.fillStyle="#222"; ctx.fillRect(canvas.width-110,10,100,40);
-        ctx.fillStyle="#fff"; ctx.fillText("Shop", canvas.width-60,36);
-    } else if(state==="play"){
-        ctx.fillStyle="#fff"; ctx.font="20px Arial"; ctx.fillText(`Score: ${Math.floor(score)}`,10,30);
-        ctx.fillText(`Highscore: ${Math.floor(highscore)}`,10,60);
-        ctx.fillText(`Münzen: ${coinsOwned}`,10,90);
-    } else if(state==="gameover"){
-        if(score>highscore){ highscore=Math.floor(score); localStorage.setItem("riderHighscore",highscore); }
-        ctx.fillStyle="rgba(0,0,0,0.7)"; ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
-        ctx.fillText("Game Over!",canvas.width/2,canvas.height/2-20);
-        ctx.font="20px Arial";
-        ctx.fillText(`Score: ${Math.floor(score)}`,canvas.width/2,canvas.height/2+10);
-        ctx.fillText(`Highscore: ${Math.floor(highscore)}`,canvas.width/2,canvas.height/2+40);
-        ctx.fillText("Tippe oder drücke R zum Neustart",canvas.width/2,canvas.height/2+70);
-    }
-}
-
-// ---------------------------
-// Game Loop
-// ---------------------------
-function gameLoop(){ update(); draw(); requestAnimationFrame(gameLoop); }
-gameLoop();
-
-// ---------------------------
-// Input
-// ---------------------------
+// Sprung-Input: beliebig viele Sprünge
 document.addEventListener("keydown",(e)=>{
     if(e.code==="Space"||e.code==="ArrowUp"){
         if(state==="start"){ state="play"; resetGame(); return; }
-        if(player.onGround) player.vy=JUMP_FORCE; isHolding=true;
+        player.vy = JUMP_FORCE;
+        isHolding = true;
     }
-    if(e.code==="KeyR" && state==="gameover"){ state="start"; resetGame(); }
-    if(e.code==="KeyS" && state==="start"){ shopOverlay.style.display="block"; refreshShop(); }
 });
 document.addEventListener("keyup",(e)=>{ if(e.code==="Space"||e.code==="ArrowUp") isHolding=false; });
 
-canvas.addEventListener("mousedown",(e)=>{
-    const rect=canvas.getBoundingClientRect();
-    const x=e.clientX-rect.left; const y=e.clientY-rect.top;
-    if(state==="start"){
-        if(x>canvas.width-110 && y<50){ shopOverlay.style.display="block"; refreshShop(); return; }
-        state="play"; resetGame();
-    }
-    if(state==="play" && player.onGround) player.vy=JUMP_FORCE;
-});
 canvas.addEventListener("touchstart",(e)=>{
-    const rect=canvas.getBoundingClientRect();
-    const x=e.touches[0].clientX-rect.left; const y=e.touches[0].clientY-rect.top;
-    if(state==="start"){
-        if(x>canvas.width-110 && y<50){ shopOverlay.style.display="block"; refreshShop(); return; }
-        state="play"; resetGame();
-    }
-    if(state==="play" && player.onGround) player.vy=JUMP_FORCE;
+    if(state==="start"){ state="play"; resetGame(); return; }
+    player.vy = JUMP_FORCE;
+    isHolding = true;
 });
 canvas.addEventListener("touchend",()=>{ isHolding=false; });
+
 
 </script>
 </body>
