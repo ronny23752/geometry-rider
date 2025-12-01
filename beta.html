@@ -1,327 +1,328 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Jump Game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mini Geometry Rider</title>
 <style>
-    body {
-        margin: 0;
-        background: #111;
-        overflow: hidden;
-        user-select: none;
-    }
-
-    canvas {
-        background: #222;
-        display: block;
-        margin: 0 auto;
-    }
-
-    /* --- Overlay Screens --- */
-
-    .overlay {
-        position: absolute;
-        top: 0; left: 0;
-        width: 100%; height: 100%;
-        background: rgba(0,0,0,0.85);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-family: Arial;
-        gap: 20px;
-    }
-
-    .hidden { display: none !important; }
-
-    #shopItems div {
-        border: 2px solid white;
-        padding: 10px;
-        width: 220px;
-        cursor: pointer;
-        text-align: center;
-        font-size: 20px;
-    }
-
-    button {
-        padding: 15px 30px;
-        border: none;
-        font-size: 20px;
-        cursor: pointer;
-        border-radius: 6px;
-    }
+body { margin:0; overflow:hidden; background:#111; font-family:Arial,sans-serif; cursor: url("cursor.png") 4 4, auto; }
+canvas { display:block; margin:0 auto; background:#111; }
 </style>
 </head>
 <body>
-
-<canvas id="game" width="900" height="500"></canvas>
-
-<!-- START SCREEN -->
-<div id="startScreen" class="overlay">
-    <h1>Jump Game</h1>
-    <button onclick="startGame()">Start</button>
-    <button onclick="showShop()">Shop</button>
-    <button onclick="quitGame()">Beenden</button>
-</div>
-
-<!-- SHOP SCREEN -->
-<div id="shopScreen" class="overlay hidden">
-    <h2>Shop</h2>
-    <div id="shopItems"></div>
-    <button onclick="closeShop()">Zurück</button>
-</div>
-
+<canvas id="gameCanvas" width="800" height="400"></canvas>
 <script>
-
-// ================================
-// --- KONSTANTEN & VARIABLEN ---
-// ================================
-
-const canvas = document.getElementById("game");
+const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+// --- Konstanten ---
+const GRAVITY = 0.6;
+const JUMP_FORCE = -12;
 const PLAYER_WIDTH = 40;
-const PLAYER_HEIGHT = 40;
+const PLAYER_HEIGHT = 20;
+const OBSTACLE_WIDTH = 40;
+const BASELINE = canvas.height-40;
 
-let player = {
-    x: 100,
-    y: 300,
-    vx: 0,
-    vy: 0,
-    onGround: false
-};
+// --- Spielzustände ---
+let state = "start"; // start, play, gameover
+let score = 0;
+let highscore = localStorage.getItem("riderHighscore") || 0;
 
-// --- Farben für Shop ---
-const COLORS = [
-    { name: "Grün", price: 0, id: "green" },
-    { name: "Rot", price: 50, id: "red" },
-    { name: "Blau", price: 100, id: "blue" },
-    { name: "Orange", price: 400, id: "orange" },
-    { name: "Lila", price: 1200, id: "purple" },
-    { name: "Gelb", price: 1800, id: "yellow" },
-    { name: "Silber", price: 2300, id: "silver" },
-    { name: "Gold", price: 5800, id: "gold" },
-    { name: "Diamant", price: 11850, id: "cyan" },
-    { name: "Smaragd", price: 32500, id: "lime" }
+// --- Spieler ---
+let player = {x:50, y:BASELINE-PLAYER_HEIGHT, vy:0, onGround:false, angle:0};
+let isHolding = false;
+
+// --- Hindernisse ---
+let obstacles = [];
+let speed = 5;
+
+// --- Hintergrund ---
+let bgStars = [];
+for(let i=0;i<100;i++) bgStars.push({x:Math.random()*canvas.width, y:Math.random()*canvas.height, size:Math.random()*2+1, speed:0.2+Math.random()*0.3});
+
+// --- Autos und Shop ---
+let cars = [
+    {name:"Grün", price:0, color:"#0f0"},
+    {name:"Rot", price:50, color:"#f00"},
+    {name:"Blau", price:100, color:"#00f"},
+    {name:"Gelb", price:200, color:"#ff0"}
 ];
-
-// --- Fortschritt laden ---
-let coins = Number(localStorage.getItem("coins") || 0);
-let unlockedIndex = Number(localStorage.getItem("unlockedIndex") || 0);
-let currentColor = localStorage.getItem("currentColor") || "green";
-
-let jumpsLeft = 2;
-let keys = {};
-let gameRunning = false;
-
-// --- Hindernisse (Boden, Gelb, Blau) ---
-let obstacles = [
-    { x: 0, y: 450, width: 2000, height: 50, type: "ground" },
-    { x: 300, y: 380, width: 120, height: 20, type: "yellow" },
-    { x: 500, y: 300, width: 120, height: 20, type: "blue" }
-];
+let ownedCars = JSON.parse(localStorage.getItem("ownedCars")) || [0];
+let selectedCar = parseInt(localStorage.getItem("selectedCar")) || 0;
+let inShop = false;
 
 // --- Münzen ---
-let coinsArray = [
-    { x: 350, y: 330 },
-    { x: 520, y: 250 },
-    { x: 800, y: 420 }
-];
+let coins = [];
+const COIN_RADIUS = 10;
+let coinsOwned = parseInt(localStorage.getItem("coinsOwned")) || 0;
 
-// ================================
-// --------- START SCREEN ---------
-// ================================
+// --- Tägliche Münzen ---
+let lastDailyClaim = localStorage.getItem("lastDailyClaim") || 0;
+const DAILY_COINS = 30;
 
-function startGame() {
-    document.getElementById("startScreen").classList.add("hidden");
-    gameRunning = true;
+// --- Funktionen ---
+function spawnObstacle(){
+    let r = Math.random();
+    if(r<0.4){ // normale Blöcke
+        let height = Math.random()*60+20;
+        obstacles.push({x:canvas.width, y:BASELINE-height, width:OBSTACLE_WIDTH, height:height, type:"block"});
+    } else if(r<0.7){ // Rampen
+        let width = 80, height=20;
+        let y = BASELINE-(Math.random()*120+20);
+        obstacles.push({x:canvas.width, y:y, width:width, height:height, type:"ramp"});
+    } else if(r<0.85){ // blaue Hochplattformen
+        let width = 100 + Math.random()*50;
+        let y = BASELINE - (150 + Math.random()*150);
+        obstacles.push({x:canvas.width, y:y, width:width, height:10, type:"bluePlatform"});
+    } else { // Hindernis von oben
+        let width = 40 + Math.random()*30;
+        let height = 20 + Math.random()*30;
+        let y = 20 + Math.random()*100; // ganz oben
+        obstacles.push({x:canvas.width, y:y, width:width, height:height, type:"topBlock"});
+    }
+
+    // Münzen über Rampen/Plattformen
+    if(Math.random()<0.2){
+        let y = BASELINE - (50 + Math.random()*100);
+        coins.push({x: canvas.width, y: y});
+    }
 }
 
-function quitGame() {
-    gameRunning = false;
-    alert("Spiel beendet.");
-    location.reload();
+function resetGame(){
+    player.y = BASELINE-PLAYER_HEIGHT; player.vy=0; player.angle=0;
+    obstacles = []; coins = []; score=0; speed=5; isHolding=false;
 }
 
-// ================================
-// ------------ SHOP -------------
-// ================================
-
-function showShop() {
-    document.getElementById("shopScreen").classList.remove("hidden");
-    fillShopItems();
+function claimDailyCoins() {
+    let now = new Date().getTime();
+    let last = parseInt(lastDailyClaim);
+    if(now - last > 24*60*60*1000){
+        coinsOwned += DAILY_COINS;
+        lastDailyClaim = now;
+        localStorage.setItem("coinsOwned", coinsOwned);
+        localStorage.setItem("lastDailyClaim", lastDailyClaim);
+        alert(`Du hast ${DAILY_COINS} Münzen erhalten!`);
+    } else {
+        let remaining = 24*60*60*1000 - (now - last);
+        let hours = Math.floor(remaining/3600000);
+        let minutes = Math.floor((remaining%3600000)/60000);
+        alert(`Du kannst die nächsten Münzen in ${hours}h ${minutes}m abholen.`);
+    }
 }
 
-function closeShop() {
-    document.getElementById("shopScreen").classList.add("hidden");
+function update(){
+    if(state!=="play") return;
+
+    let currentSpeed = speed;
+    if(isHolding && player.onGround) currentSpeed += 2;
+
+    player.vy += GRAVITY;
+    player.y += player.vy;
+    player.onGround = false;
+
+    if (player.y < 0) { player.y = 0; player.vy = 0; }
+
+    // Hindernis-Kollision
+    for(let obs of obstacles){
+        if(obs.type==="block" || obs.type==="topBlock"){
+            if(player.x<obs.x+obs.width && player.x+PLAYER_WIDTH>obs.x &&
+               player.y<obs.y+obs.height && player.y+PLAYER_HEIGHT>obs.y){
+                state="gameover";
+            }
+        } else if(obs.type==="ramp" || obs.type==="bluePlatform"){
+            let rampTopY = obs.type==="ramp"? obs.y - (player.x-obs.x)*(obs.height/obs.width) : obs.y;
+            if(player.y+PLAYER_HEIGHT>rampTopY && player.y+PLAYER_HEIGHT<rampTopY+20 &&
+               player.x+PLAYER_WIDTH>obs.x && player.x<obs.x+obs.width &&
+               player.vy >=0){
+                player.y = rampTopY-PLAYER_HEIGHT;
+                player.vy = 0;
+                player.onGround = true;
+            }
+        }
+    }
+
+    if(player.y+PLAYER_HEIGHT>BASELINE){
+        player.y = BASELINE-PLAYER_HEIGHT;
+        player.vy = 0;
+        player.onGround = true;
+    }
+
+    // Münzen-Kollision
+    coins = coins.filter(coin => {
+        let dx = (player.x + PLAYER_WIDTH/2) - coin.x;
+        let dy = (player.y + PLAYER_HEIGHT/2) - coin.y;
+        let dist = Math.sqrt(dx*dx + dy*dy);
+        if(dist < COIN_RADIUS + Math.max(PLAYER_WIDTH,PLAYER_HEIGHT)/2){
+            score += 1;
+            coinsOwned += 1;
+            localStorage.setItem("coinsOwned", coinsOwned);
+            return false;
+        }
+        coin.x -= currentSpeed;
+        return coin.x + COIN_RADIUS > 0;
+    });
+
+    obstacles = obstacles.filter(obs => obs.x+obs.width>0);
+    obstacles.forEach(obs => obs.x -= currentSpeed);
+
+    score += 0.01;
+    if(Math.random()<0.03) spawnObstacle();
 }
 
-function fillShopItems() {
-    let container = document.getElementById("shopItems");
-    container.innerHTML = "";
+// --- Zeichnen ---
+function drawPlayer(){
+    ctx.save();
+    ctx.translate(player.x+PLAYER_WIDTH/2, player.y+PLAYER_HEIGHT/2);
+    ctx.rotate(player.angle);
+    ctx.fillStyle=cars[selectedCar].color; ctx.shadowColor=cars[selectedCar].color; ctx.shadowBlur=10;
+    ctx.fillRect(-PLAYER_WIDTH/2+5,-PLAYER_HEIGHT/2,30,20);
+    ctx.shadowBlur=0;
+    ctx.fillStyle="#444"; ctx.beginPath();
+    ctx.arc(-10,12,6,0,Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(20,12,6,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+}
 
-    COLORS.forEach((c, i) => {
-        let div = document.createElement("div");
-        let owned = i <= unlockedIndex;
-
-        div.style.borderColor = c.id;
-
-        div.innerHTML = `<b>${c.name}</b> – $${c.price} ${owned ? "(✔️)" : ""}`;
-        div.onclick = () => handleShopClick(i);
-
-        container.appendChild(div);
+function drawObstacles(){
+    obstacles.forEach(obs=>{
+        if(obs.type==="block"){
+            ctx.fillStyle="#f33"; ctx.fillRect(obs.x,obs.y,obs.width,obs.height);
+            ctx.fillStyle="#b00"; ctx.fillRect(obs.x,obs.y,obs.width/4,obs.height);
+            ctx.strokeStyle="#800"; ctx.strokeRect(obs.x,obs.y,obs.width,obs.height);
+        } else if(obs.type==="ramp"){
+            ctx.fillStyle="#ff0"; ctx.beginPath();
+            ctx.moveTo(obs.x,obs.y+obs.height);
+            ctx.lineTo(obs.x+obs.width,obs.y);
+            ctx.lineTo(obs.x+obs.width,obs.y+obs.height);
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle="#cc0"; ctx.stroke();
+        } else if(obs.type==="bluePlatform"){
+            ctx.fillStyle="#00f";
+            ctx.fillRect(obs.x,obs.y,obs.width,obs.height);
+            ctx.strokeStyle="#005";
+            ctx.strokeRect(obs.x,obs.y,obs.width,obs.height);
+        } else if(obs.type==="topBlock"){
+            ctx.fillStyle="#f33";
+            ctx.fillRect(obs.x,obs.y,obs.width,obs.height);
+            ctx.strokeStyle="#800";
+            ctx.strokeRect(obs.x,obs.y,obs.width,obs.height);
+        }
     });
 }
 
-function handleShopClick(index) {
-
-    // Farbe wechseln
-    if (index <= unlockedIndex) {
-        currentColor = COLORS[index].id;
-        localStorage.setItem("currentColor", currentColor);
-        alert("Farbe gewechselt!");
-        return;
-    }
-
-    // Reihenfolge
-    if (index !== unlockedIndex + 1) {
-        alert("Du musst erst vorherige Farben kaufen!");
-        return;
-    }
-
-    // Geld prüfen
-    let price = COLORS[index].price;
-    if (coins < price) {
-        alert("Zu wenig Coins!");
-        return;
-    }
-
-    // Kauf
-    coins -= price;
-    unlockedIndex = index;
-
-    currentColor = COLORS[index].id;
-
-    localStorage.setItem("coins", coins);
-    localStorage.setItem("unlockedIndex", unlockedIndex);
-    localStorage.setItem("currentColor", currentColor);
-
-    alert("Gekauft: " + COLORS[index].name);
-    fillShopItems();
-}
-
-// ================================
-// --------- STEUERUNG -----------
-// ================================
-
-document.addEventListener("keydown", e => keys[e.key] = true);
-document.addEventListener("keyup",   e => keys[e.key] = false);
-
-// ================================
-// --------- PHYSIK --------------
-// ================================
-
-function update() {
-
-    if (!gameRunning) {
-        requestAnimationFrame(update);
-        return;
-    }
-
-    // Schwerkraft
-    player.vy += 0.5;
-
-    // Bewegung
-    if (keys["a"] || keys["ArrowLeft"])  player.x -= 4;
-    if (keys["d"] || keys["ArrowRight"]) player.x += 4;
-
-    // Sprung
-    if ((keys["w"] || keys["ArrowUp"]) && jumpsLeft > 0) {
-        player.vy = -10;
-        jumpsLeft--;
-        keys["w"] = false;
-        keys["ArrowUp"] = false;
-    }
-
-    // Position aktualisieren
-    player.x += player.vx;
-    player.y += player.vy;
-
-    // --- Hindernis Kollisionen ---
-    for (let obs of obstacles) {
-        if (
-            player.x < obs.x + obs.width &&
-            player.x + PLAYER_WIDTH > obs.x &&
-            player.y + PLAYER_HEIGHT > obs.y &&
-            player.y + PLAYER_HEIGHT < obs.y + 25 &&
-            player.vy >= 0
-        ) {
-            // Landen
-            player.y = obs.y - PLAYER_HEIGHT;
-            player.vy = 0;
-            player.onGround = true;
-            jumpsLeft = 2;   // RESET AUCH FÜR GELB + BLAU
-        }
-    }
-
-    // --- Münzen sammeln ---
-    for (let i = coinsArray.length - 1; i >= 0; i--) {
-        let c = coinsArray[i];
-
-        if (
-            player.x < c.x + 20 &&
-            player.x + PLAYER_WIDTH > c.x &&
-            player.y < c.y + 20 &&
-            player.y + PLAYER_HEIGHT > c.y
-        ) {
-            coins++;
-            localStorage.setItem("coins", coins);
-            coinsArray.splice(i, 1);
-        }
-    }
-
-    draw();
-    requestAnimationFrame(update);
-}
-
-// ================================
-// ------------ DRAW -------------
-// ================================
-
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Hindernisse
-    for (let obs of obstacles) {
-        ctx.fillStyle =
-            obs.type === "ground" ? "#444" :
-            obs.type === "yellow" ? "yellow" :
-            obs.type === "blue"   ? "blue" : "white";
-
-        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-    }
-
-    // Münzen
-    ctx.fillStyle = "gold";
-    for (let c of coinsArray) {
+function drawCoins(){
+    coins.forEach(c=>{
+        ctx.fillStyle="#f90";
         ctx.beginPath();
-        ctx.arc(c.x, c.y, 10, 0, Math.PI * 2);
+        ctx.arc(c.x,c.y,COIN_RADIUS,0,Math.PI*2);
         ctx.fill();
-    }
-
-    // Spieler
-    ctx.fillStyle = currentColor;
-    ctx.fillRect(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
-
-    // Coin-Anzeige
-    ctx.fillStyle = "#fff";
-    ctx.font = "22px Arial";
-    ctx.fillText("Coins: " + coins, 20, 30);
+        ctx.strokeStyle="#ff6600";
+        ctx.stroke();
+    });
 }
 
-update();
+function drawBackground(){
+    ctx.fillStyle="#111"; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="#555";
+    bgStars.forEach(star=>{
+        ctx.fillRect(star.x,star.y,star.size,star.size);
+        star.x -= star.speed;
+        if(star.x<0) star.x=canvas.width;
+    });
+    ctx.strokeStyle="#0f0"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(0,BASELINE); ctx.lineTo(canvas.width,BASELINE); ctx.stroke();
+}
 
+function draw(){
+    drawBackground(); drawObstacles(); drawCoins(); drawPlayer();
+
+    if(state==="start"){
+        ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
+        ctx.fillText("Mini Geometry Rider",canvas.width/2,150);
+        ctx.font="20px Arial"; ctx.fillText("Drücke Space oder tippe, um zu starten",canvas.width/2,200);
+    } else if(state==="play"){
+        ctx.fillStyle="#fff"; ctx.font="20px Arial"; ctx.shadowColor="#0ff"; ctx.shadowBlur=5;
+        ctx.fillText("Score: "+Math.floor(score),10,30);
+        ctx.fillText("Highscore: "+Math.floor(highscore),10,60);
+        ctx.fillText("Münzen: "+coinsOwned, 10, 90);
+        ctx.shadowBlur=0;
+    } else if(state==="gameover"){
+        if(score>highscore){ highscore=Math.floor(score); localStorage.setItem("riderHighscore",highscore);}
+        ctx.fillStyle="rgba(0,0,0,0.7)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
+        ctx.fillText("Game Over!",canvas.width/2,canvas.height/2-20);
+        ctx.font="20px Arial";
+        ctx.fillText("Score: "+Math.floor(score),canvas.width/2,canvas.height/2+10);
+        ctx.fillText("Highscore: "+Math.floor(highscore),canvas.width/2,canvas.height/2+40);
+        ctx.fillText("Tippe oder drücke R zum Neustart",canvas.width/2,canvas.height/2+70);
+    }
+
+    // Shop Overlay
+    if(inShop){
+        ctx.fillStyle="rgba(0,0,0,0.8)";
+        ctx.fillRect(100,50,600,320);
+        ctx.fillStyle="#fff"; ctx.font="30px Arial"; ctx.textAlign="center";
+        ctx.fillText("AutoShop", canvas.width/2, 90);
+
+        ctx.font="20px Arial"; ctx.textAlign="left";
+        cars.forEach((car,i)=>{
+            let y = 130 + i*50;
+            ctx.fillStyle = car.color;
+            ctx.fillRect(150,y,50,30);
+            ctx.fillStyle="#fff";
+            ctx.fillText(car.name + " - " + car.price + " Münzen" + (ownedCars.includes(i)?" (Besitzt)":"") + (selectedCar===i?" <- Ausgewählt":""), 220, y+20);
+        });
+        ctx.fillText(`Deine Münzen: ${coinsOwned}`, canvas.width/2, 340);
+        ctx.fillText("Drücke Zahl 1-"+cars.length+" zum Auswählen/Kaufen", canvas.width/2, 360);
+        ctx.fillText("Tippe D, um tägliche Münzen zu holen", canvas.width/2, 380);
+    }
+}
+
+// --- Game Loop ---
+function gameLoop(){ update(); draw(); requestAnimationFrame(gameLoop); }
+
+// --- Eingaben ---
+document.addEventListener("keydown",(e)=>{
+    if(e.code==="Space" || e.code==="ArrowUp"){
+        if(state==="start"){ state="play"; resetGame(); return; }
+        if(state==="play" && !isHolding) player.vy=JUMP_FORCE;
+        isHolding=true;
+    }
+    if(e.code==="KeyR" && state==="gameover"){ state="start"; }
+    
+    if(e.code==="KeyS" && state==="play"){ inShop = !inShop; }
+    
+    if(inShop){
+        if(e.code.startsWith("Digit")){
+            let idx = parseInt(e.code.replace("Digit",""))-1;
+            if(idx>=0 && idx<cars.length){
+                if(!ownedCars.includes(idx) && coinsOwned>=cars[idx].price){
+                    coinsOwned -= cars[idx].price;
+                    ownedCars.push(idx);
+                    localStorage.setItem("ownedCars", JSON.stringify(ownedCars));
+                    localStorage.setItem("coinsOwned", coinsOwned);
+                }
+                selectedCar = idx;
+                localStorage.setItem("selectedCar", selectedCar);
+            }
+        }
+        if(e.code==="KeyD"){ claimDailyCoins(); }
+    }
+});
+
+document.addEventListener("keyup",(e)=>{ if(e.code==="Space" || e.code==="ArrowUp") isHolding=false; });
+
+document.addEventListener("touchstart",()=>{ 
+    if(state==="start"){ state="play"; resetGame(); return; }
+    if(state==="gameover"){ state="start"; return; }
+    if(!isHolding) player.vy=JUMP_FORCE;
+    isHolding=true;
+});
+
+document.addEventListener("touchend",()=>{ isHolding=false; });
+
+gameLoop();
 </script>
 </body>
 </html>
