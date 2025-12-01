@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mini Geometry Rider</title>
+<style>
+body { margin:0; overflow:hidden; background:#111; font-family:Arial, sans-serif; cursor: url("cursor.png") 4 4, auto; }
+canvas { display:block; margin:0 auto; background:#111; }
+
+#shopOverlay {
+    position:absolute; top:50px; left:50%; transform:translateX(-50%);
+    width:700px; max-height:320px; background:rgba(0,0,0,0.85);
+    border:2px solid #0f0; border-radius:10px; padding:10px;
+    overflow-y:auto; display:none;
+}
+.carItem {
+    display:flex; align-items:center; margin:5px 0; padding:5px; border-radius:5px; background:#222;
+}
+.colorBox { width:50px; height:30px; margin-right:10px; border-radius:5px; border:2px solid #000; }
+.carInfo { flex:1; color:#fff; }
+.carButton { background:#0f0; border:none; padding:5px 10px; margin-left:10px; cursor:pointer; border-radius:5px; }
+.closeBtn { background:#f33; color:#fff; margin-bottom:10px; padding:5px 10px; border:none; border-radius:5px; cursor:pointer; }
+.dailyBtn { background:#222; color:#fff; padding:5px 10px; margin:10px 0; border:none; cursor:pointer; width:100%; border-radius:5px; }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="800" height="400"></canvas>
+
+<div id="shopOverlay">
+    <button class="closeBtn" id="closeShop">Schließen</button>
+    <h2 style="color:white; text-align:center;">AutoShop</h2>
+    <p id="coinsText" style="text-align:center; color:white;"></p>
+    <div id="carsContainer"></div>
+    <button class="dailyBtn" id="dailyCoinsBtn">Tägliche Münzen +30</button>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+// ---------------------------
+// Spiel Konstanten
+// ---------------------------
+const GRAVITY = 0.6;
+const JUMP_FORCE = -12;
+const PLAYER_WIDTH = 40;
+const PLAYER_HEIGHT = 20;
+const BASELINE = canvas.height-40;
+
+// ---------------------------
+// Spielvariablen
+// ---------------------------
+let state = "start"; // start, play, gameover
+let score = 0;
+let highscore = parseInt(localStorage.getItem("riderHighscore")) || 0;
+let coinsOwned = parseInt(localStorage.getItem("coinsOwned")) || 0;
+
+// Spieler
+let player = { x:50, y:BASELINE-PLAYER_HEIGHT, vy:0, onGround:false, angle:0 };
+let isHolding = false;
+
+// Autos
+let cars = [
+    {name:"Grün", price:0, color:"#0f0", rarity:"Standard"},
+    {name:"Rot", price:50, color:"#f00", rarity:"Selten"},
+    {name:"Blau", price:100, color:"#00f", rarity:"Selten"},
+    {name:"Gelb", price:200, color:"#ff0", rarity:"Selten"},
+    {name:"Lila", price:400, color:"#a0f", rarity:"Episch"},
+    {name:"Orange", price:800, color:"#fa0", rarity:"Episch"},
+    {name:"Cyan", price:1600, color:"#0ff", rarity:"Episch"},
+    {name:"Rosa", price:3200, color:"#f0f", rarity:"Mythisch"},
+    {name:"Gold", price:6400, color:"#ff0", rarity:"Mythisch"},
+    {name:"Silber", price:12800, color:"#ccc", rarity:"Mythisch"},
+    {name:"Diamant", price:25600, color:"#0ff", rarity:"Legendär"},
+    {name:"Smaragd", price:51200, color:"#0a0", rarity:"Legendär"},
+    {name:"Rubin", price:102400, color:"#f00", rarity:"Legendär"},
+    {name:"Topas", price:204800, color:"#fa0", rarity:"Legendär"},
+    {name:"Ametyst", price:409600, color:"#a0f", rarity:"Oktopus"},
+    {name:"Oktopus", price:819200, color:"#00a", rarity:"Oktopus"},
+    {name:"Saphir", price:900, color:"#00a", rarity:"Selten"},
+    {name:"Türkis", price:1200, color:"#0ff", rarity:"Selten"},
+    {name:"Koralle", price:2000, color:"#f66", rarity:"Episch"},
+    {name:"Magenta", price:2500, color:"#f0f", rarity:"Episch"},
+    {name:"Bronze", price:3000, color:"#b76", rarity:"Mythisch"},
+    {name:"Platin", price:4000, color:"#ccc", rarity:"Mythisch"},
+    {name:"Onyx", price:5000, color:"#111", rarity:"Legendär"},
+    {name:"Titan", price:6000, color:"#888", rarity:"Legendär"},
+    {name:"Kraken", price:7000, color:"#0ff", rarity:"Oktopus"},
+    {name:"Leviathan", price:8000, color:"#0a0", rarity:"Oktopus"}
+];
+let ownedCars = JSON.parse(localStorage.getItem("ownedCars")) || [0];
+let selectedCar = parseInt(localStorage.getItem("selectedCar")) || 0;
+
+// Shop Overlay
+const shopOverlay = document.getElementById("shopOverlay");
+const coinsText = document.getElementById("coinsText");
+const carsContainer = document.getElementById("carsContainer");
+const closeShopBtn = document.getElementById("closeShop");
+const dailyCoinsBtn = document.getElementById("dailyCoinsBtn");
+
+// ---------------------------
+// Shop Funktionen
+// ---------------------------
+function refreshShop(){
+    coinsText.innerText = `Deine Münzen: ${coinsOwned}`;
+    carsContainer.innerHTML = "";
+    cars.forEach((car,i)=>{
+        let div = document.createElement("div");
+        div.className = "carItem";
+
+        let color = document.createElement("div");
+        color.className="colorBox";
+        color.style.background=car.color;
+
+        let info = document.createElement("div");
+        info.className="carInfo";
+        info.innerText = `${car.name} [${car.rarity}] - ${car.price} Münzen` + (ownedCars.includes(i)?" (Besitzt)":"") + (selectedCar===i?" <- Ausgewählt":"");
+
+        let btn = document.createElement("button");
+        btn.className="carButton";
+        if(ownedCars.includes(i)){ btn.innerText = selectedCar===i?"Ausgewählt":"Wählen"; }
+        else { btn.innerText="Kaufen"; }
+
+        btn.onclick=()=>{
+            if(!ownedCars.includes(i)){
+                if(coinsOwned>=car.price){
+                    coinsOwned-=car.price;
+                    ownedCars.push(i);
+                    localStorage.setItem("coinsOwned",coinsOwned);
+                    localStorage.setItem("ownedCars",JSON.stringify(ownedCars));
+                } else { alert("Nicht genug Münzen!"); return; }
+            }
+            selectedCar=i;
+            localStorage.setItem("selectedCar",selectedCar);
+            refreshShop();
+        };
+
+        div.appendChild(color);
+        div.appendChild(info);
+        div.appendChild(btn);
+        carsContainer.appendChild(div);
+    });
+}
+
+// Tägliche Münzen
+dailyCoinsBtn.onclick = ()=>{
+    let last = parseInt(localStorage.getItem("lastDailyClaim")) || 0;
+    let now = Date.now();
+    if(now-last>24*60*60*1000){
+        coinsOwned += 30;
+        localStorage.setItem("coinsOwned",coinsOwned);
+        localStorage.setItem("lastDailyClaim", now);
+        alert("Du hast 30 Münzen erhalten!");
+        refreshShop();
+    } else {
+        let remaining = 24*60*60*1000 - (now-last);
+        let hours = Math.floor(remaining/3600000);
+        let minutes = Math.floor((remaining%3600000)/60000);
+        alert(`Nächste Münzen in ${hours}h ${minutes}m`);
+    }
+};
+
+closeShopBtn.onclick = ()=>{ shopOverlay.style.display="none"; };
+
+// ---------------------------
+// Input
+// ---------------------------
+document.addEventListener("keydown",(e)=>{
+    if(e.code==="Space"||e.code==="ArrowUp"){
+        if(state==="start"){ state="play"; return; }
+        if(player.onGround) player.vy=JUMP_FORCE;
+        isHolding=true;
+    }
+    if(e.code==="KeyR"&&state==="gameover"){ state="start"; score=0; }
+    if(e.code==="KeyS"&&state==="start"){ shopOverlay.style.display="block"; refreshShop(); }
+});
+document.addEventListener("keyup",(e)=>{ if(e.code==="Space"||e.code==="ArrowUp") isHolding=false; });
+
+canvas.addEventListener("mousedown",(e)=>{
+    const rect=canvas.getBoundingClientRect();
+    const x=e.clientX-rect.left;
+    const y=e.clientY-rect.top;
+    if(state==="start"){
+        if(x>canvas.width-110 && y<50){ shopOverlay.style.display="block"; refreshShop(); return; }
+        state="play";
+    }
+    if(state==="play" && player.onGround) player.vy=JUMP_FORCE;
+});
+canvas.addEventListener("touchstart",(e)=>{
+    const rect=canvas.getBoundingClientRect();
+    const x=e.touches[0].clientX-rect.left;
+    const y=e.touches[0].clientY-rect.top;
+    if(state==="start"){
+        if(x>canvas.width-110 && y<50){ shopOverlay.style.display="block"; refreshShop(); return; }
+        state="play";
+    }
+    if(state==="play" && player.onGround) player.vy=JUMP_FORCE;
+});
+
+// ---------------------------
+// Hilfsfunktionen
+// ---------------------------
+function getRarityColor(r){switch(r){case"Standard":return"#0f0";case"Selten":return"#00f";case"Episch":return"#a0f";case"Mythisch":return"#fa0";case"Legendär":return"#ff0";case"Oktopus":return"#0ff";default:return"#fff";}}
+
+// ---------------------------
+// Zeichnen
+// ---------------------------
+function drawPlayer(){
+    ctx.save();
+    ctx.translate(player.x+PLAYER_WIDTH/2,player.y+PLAYER_HEIGHT/2);
+    ctx.rotate(player.angle);
+    ctx.fillStyle=cars[selectedCar].color;
+    ctx.fillRect(-PLAYER_WIDTH/2+5,-PLAYER_HEIGHT/2,30,20);
+    ctx.restore();
+}
+
+function draw(){
+    ctx.fillStyle="#111"; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    if(state==="start"){
+        ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
+        ctx.fillText("Mini Geometry Rider", canvas.width/2, 150);
+        ctx.font="20px Arial"; ctx.fillText("Drücke Space oder tippe, um zu starten", canvas.width/2, 200);
+        ctx.fillStyle="#222"; ctx.fillRect(canvas.width-110,10,100,40);
+        ctx.fillStyle="#fff"; ctx.fillText("Shop", canvas.width-60, 36);
+    } else if(state==="play"){
+        drawPlayer();
+        ctx.fillStyle="#fff"; ctx.font="20px Arial"; ctx.fillText(`Score: ${Math.floor(score)}`,10,30);
+        ctx.fillText(`Highscore: ${Math.floor(highscore)}`,10,60);
+        ctx.fillText(`Münzen: ${coinsOwned}`,10,90);
+    } else if(state==="gameover"){
+        ctx.fillStyle="rgba(0,0,0,0.7)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
+        ctx.fillText("Game Over!",canvas.width/2,canvas.height/2-20);
+        ctx.font="20px Arial";
+        ctx.fillText(`Score: ${Math.floor(score)}`,canvas.width/2,canvas.height/2+10);
+        ctx.fillText(`Highscore: ${Math.floor(highscore)}`,canvas.width/2,canvas.height/2+40);
+        ctx.fillText("Tippe oder drücke R zum Neustart",canvas.width/2,canvas.height/2+70);
+    }
+}
+
+// ---------------------------
+// Game Loop
+// ---------------------------
+function gameLoop(){ draw(); requestAnimationFrame(gameLoop); }
+gameLoop();
+</script>
+</body>
+</html>
