@@ -1,5 +1,5 @@
+{"id":"48319","variant":"standard"}
 <!DOCTYPE html>
-
 <html lang="de">
 <head>
 <meta charset="UTF-8">
@@ -8,21 +8,32 @@
 <style>
 body { margin:0; overflow:hidden; background:#111; font-family:Arial,sans-serif; cursor: url("cursor.png") 4 4, auto; }
 canvas { display:block; margin:0 auto; background:#111; }
-#shop { position:absolute; top:10px; right:10px; background:#222; padding:10px; border:2px solid #0ff; color:#fff; max-height:90vh; overflow:auto; width:300px; font-size:14px; }
-#shop h2 { margin-top:0; text-align:center; }
-.shopItem { margin:5px 0; padding:5px; border:1px solid #555; cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
-.shopItem.bought { border-color:#0f0; }
-.shopItem span { margin-left:5px; }
-#coins { font-weight:bold; color:#ff0; }
+#shop {
+    position:absolute; top:0; left:0; width:100%; height:100%;
+    background:rgba(0,0,0,0.85); display:none; color:#fff; text-align:center;
+    padding-top:50px; font-family:Arial; z-index:50;
+}
+#shopButton {
+    position:absolute; top:10px; right:10px; padding:10px 20px;
+    font-size:18px; border-radius:8px; background:#222; color:#fff; border:none; cursor:pointer; z-index:60;
+}
+.shopItem { margin:12px; font-size:20px; display:flex; align-items:center; justify-content:center; gap:12px; }
+.shopItem .name { min-width:180px; text-align:left; }
+.shopItem button { padding:6px 12px; font-size:16px; border-radius:6px; cursor:pointer; }
 </style>
 </head>
 <body>
 <canvas id="gameCanvas" width="800" height="400"></canvas>
+
 <div id="shop">
-<h2>Shop</h2>
-<div id="coins">Coins: 0</div>
-<div id="shopItems"></div>
+    <h1>Fahrzeug-Shop</h1>
+    <div id="coins" style="font-size:20px; margin-bottom:12px;"></div>
+    <div id="carList"></div>
+    <button onclick="closeShop()" style="margin-top:30px; padding:10px 20px; font-size:20px; border-radius:10px;">Zurück</button>
 </div>
+
+<button id="shopButton">Shop öffnen</button>
+
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -35,102 +46,47 @@ const PLAYER_HEIGHT = 20;
 const OBSTACLE_WIDTH = 40;
 const BASELINE = canvas.height-40;
 
+// --- Shop (Daten) ---
+let cars = [
+    {name:"Greenline Classic", color:"#0f0", price:0},
+    {name:"Urban Runner", color:"#3af", price:150},
+    {name:"Street Breeze", color:"#ff0", price:220},
+    {name:"Neon Hopper", color:"#f0f", price:350},
+];
+
+// sichere Initialisierung von ownedCars (immer Array mit Zahlen)
+let ownedCarsRaw = localStorage.getItem("ownedCars");
+let ownedCars;
+try{
+    ownedCars = ownedCarsRaw ? JSON.parse(ownedCarsRaw) : [0];
+    if(!Array.isArray(ownedCars)) ownedCars = [0];
+    ownedCars = ownedCars.map(n => parseInt(n)).filter(n => !isNaN(n));
+    if(ownedCars.length === 0) ownedCars = [0];
+}catch(e){
+    ownedCars = [0];
+    localStorage.setItem("ownedCars", JSON.stringify(ownedCars));
+}
+
+// sichere Initialisierung selectedCar
+let selRaw = localStorage.getItem("selectedCar");
+let selectedCar = parseInt(selRaw);
+if(isNaN(selectedCar) || selectedCar < 0 || selectedCar >= cars.length) selectedCar = 0;
+
+// highscore als Zahl
+let highscore = parseInt(localStorage.getItem("riderHighscore"));
+if(isNaN(highscore)) highscore = 0;
+
 // --- Spielzustände ---
-let state = "start"; // start, play, gameover
+let state = "start"; // "start", "play", "gameover", "shop"
 let score = 0;
-let coins = 0;
-let highscore = localStorage.getItem("riderHighscore") || 0;
 
 // --- Spieler ---
-let player = {x:50, y:BASELINE-PLAYER_HEIGHT, vy:0, onGround:false, angle:0, color:"#0f0"};
+let player = {x:50, y:BASELINE-PLAYER_HEIGHT, vy:0, onGround:false, angle:0};
 let isHolding = false;
 
 // --- Hindernisse ---
 let obstacles = [];
 let speed = 5;
-
-// --- Münzen ---
-let coinSpawns = [];
-function spawnCoin(x, y){ coinSpawns.push({x:x, y:y, size:10}); }
-
-// --- Autos ---
-const cars = [
-{name:"Greenline Classic", rarity:"Standard", price:0, color:"#0f0"},
-{name:"Urban Runner", rarity:"Standard", price:150, color:"#3af"},
-{name:"Street Breeze", rarity:"Standard", price:220, color:"#ff0"},
-{name:"Neon Hopper", rarity:"Standard", price:300, color:"#f0f"},
-{name:"Turbo Rookie", rarity:"Standard", price:380, color:"#fa0"},
-{name:"Comet Lite", rarity:"Standard", price:450, color:"#fff"},
-{name:"Silver Pulse", rarity:"Selten", price:650, color:"#ccc"},
-{name:"Aero Swift", rarity:"Selten", price:720, color:"#9cf"},
-{name:"Velo Strider", rarity:"Selten", price:800, color:"#bfb"},
-{name:"Quartz Rider", rarity:"Selten", price:920, color:"#fc9"},
-{name:"Trail Dancer", rarity:"Selten", price:1040, color:"#f99"},
-{name:"Chrome Sprint", rarity:"Selten", price:1180, color:"#9ff"},
-{name:"Crystal Edge", rarity:"Selten", price:1300, color:"#cdf"},
-{name:"Solar Trail S", rarity:"Selten", price:1450, color:"#fd6"},
-{name:"Pyroflare V1", rarity:"Episch", price:1700, color:"#f55"},
-{name:"Astra Cyclone", rarity:"Episch", price:1950, color:"#5af"},
-{name:"Voltrush EX", rarity:"Episch", price:2200, color:"#5ff"},
-{name:"Thunder Rift", rarity:"Episch", price:2500, color:"#ccf"},
-{name:"Nova Phantom", rarity:"Episch", price:2800, color:"#fff"},
-{name:"Plasma Rider", rarity:"Episch", price:3100, color:"#39f"},
-{name:"Ignite Spectre", rarity:"Episch", price:3450, color:"#f33"},
-{name:"Cryo Phantom", rarity:"Episch", price:3800, color:"#0ff"},
-{name:"Lunar Stride", rarity:"Episch", price:4250, color:"#ddd"},
-{name:"Eclipse Wraith", rarity:"Mythisch", price:4800, color:"#333"},
-{name:"Vortex Ascendant", rarity:"Mythisch", price:5400, color:"#8df"},
-{name:"Starforge MK-II", rarity:"Mythisch", price:6100, color:"#dd0"},
-{name:"Nebula Phantom", rarity:"Mythisch", price:6800, color:"#a0f"},
-{name:"Pyrocore Zenith", rarity:"Mythisch", price:7600, color:"#f00"},
-{name:"Solarstorm X", rarity:"Mythisch", price:8500, color:"#ff5"},
-{name:"Ion Tempest", rarity:"Mythisch", price:9400, color:"#9ff"},
-{name:"Radiant Howler", rarity:"Mythisch", price:10300, color:"#fff"},
-{name:"Obsidian Monarch", rarity:"Legendär", price:11800, color:"#111"},
-{name:"Quantum Sovereign", rarity:"Legendär", price:13400, color:"#acf"},
-{name:"Titanfall Ascendant", rarity:"Legendär", price:15100, color:"#ff9"},
-{name:"Aurelion Vanguard", rarity:"Legendär", price:16900, color:"#ffd700"},
-{name:"Eternal Starborn", rarity:"Legendär", price:18800, color:"#fff"},
-{name:"Okto-Wave", rarity:"Oktopus", price:9000, color:"#6af"},
-{name:"Inkjet Surge", rarity:"Oktopus", price:11200, color:"#48c"},
-{name:"Kraken Drift", rarity:"Oktopus", price:13900, color:"#24a"},
-{name:"Okto-Prime", rarity:"Oktopus", price:15800, color:"#04f"}
-];
-
-let ownedCars = JSON.parse(localStorage.getItem("ownedCars")) || ["Greenline Classic"];
-let selectedCar = localStorage.getItem("selectedCar") || "Greenline Classic";
-
-function updateCarSelection(){
-const shopDiv = document.getElementById("shopItems");
-shopDiv.innerHTML="";
-cars.forEach(car=>{
-const div = document.createElement("div");
-div.className="shopItem";
-if(ownedCars.includes(car.name)) div.classList.add("bought");
-div.innerHTML=`<span style="color:${car.color}">■</span> ${car.name} (${car.rarity}) - ${car.price} Coins ${ownedCars.includes(car.name)?"✔":""}`;
-div.onclick = ()=>{
-if(ownedCars.includes(car.name)){
-selectedCar=car.name;
-player.color=car.color;
-localStorage.setItem("selectedCar",selectedCar);
-updateCarSelection();
-} else if(coins>=car.price){
-coins-=car.price;
-ownedCars.push(car.name);
-selectedCar=car.name;
-player.color=car.color;
-localStorage.setItem("ownedCars",JSON.stringify(ownedCars));
-localStorage.setItem("selectedCar",selectedCar);
-updateCarSelection();
-updateCoinsDisplay();
-} else { alert("Nicht genug Coins!"); }
-};
-shopDiv.appendChild(div);
-});
-}
-function updateCoinsDisplay(){ document.getElementById("coins").textContent="Coins: "+Math.floor(coins); }
-updateCarSelection();
-updateCoinsDisplay();
 
 // --- Hintergrund ---
 let bgStars = [];
@@ -138,170 +94,237 @@ for(let i=0;i<100;i++) bgStars.push({x:Math.random()*canvas.width, y:Math.random
 
 // --- Funktionen ---
 function spawnObstacle(){
-let r = Math.random();
-if(r<0.4){
-let height = Math.random()*60+20;
-obstacles.push({x:canvas.width, y:BASELINE-height, width:OBSTACLE_WIDTH, height:height, type:"block"});
-} else if(r<0.7){
-let width = 80, height=20;
-let y = BASELINE-(Math.random()*120+20);
-obstacles.push({x:canvas.width, y:y, width:width, height:height, type:"ramp"});
-} else if(r<0.85){
-let width = 100 + Math.random()*50;
-let y = BASELINE - (150 + Math.random()*150);
-obstacles.push({x:canvas.width, y:y, width:width, height:10, type:"bluePlatform"});
-} else {
-let width = 40 + Math.random()*30;
-let height = 20 + Math.random()*30;
-let y = 20 + Math.random()*100;
-obstacles.push({x:canvas.width, y:y, width:width, height:height, type:"topBlock"});
-}
+    let r = Math.random();
+    if(r<0.4){
+        let height = Math.random()*60+20;
+        obstacles.push({x:canvas.width, y:BASELINE-height, width:OBSTACLE_WIDTH, height:height, type:"block"});
+    } else if(r<0.7){
+        let width = 80, height=20;
+        let y = BASELINE-(Math.random()*120+20);
+        obstacles.push({x:canvas.width, y:y, width:width, height:height, type:"ramp"});
+    } else if(r<0.85){
+        let width = 100 + Math.random()*50;
+        let y = BASELINE - (150 + Math.random()*150);
+        obstacles.push({x:canvas.width, y:y, width:width, height:10, type:"bluePlatform"});
+    } else {
+        let width = 40 + Math.random()*30;
+        let height = 20 + Math.random()*30;
+        let y = 20 + Math.random()*100;
+        obstacles.push({x:canvas.width, y:y, width:width, height:height, type:"topBlock"});
+    }
 }
 
 function resetGame(){
-player.y = BASELINE-PLAYER_HEIGHT; player.vy=0; player.angle=0;
-obstacles=[]; score=0; speed=5; isHolding=false;
+    player.y = BASELINE-PLAYER_HEIGHT; player.vy=0; player.angle=0;
+    obstacles = []; score=0; speed=5; isHolding=false;
 }
 
 function update(){
-if(state!=="play") return;
+    if(state!=="play") return;
 
-```
-let currentSpeed = speed;
-if(isHolding && player.onGround) currentSpeed += 2;
+    let currentSpeed = speed;
+    if(isHolding && player.onGround) currentSpeed += 2;
 
-player.vy += GRAVITY;
-player.y += player.vy;
-player.onGround = false;
-if(player.y<0){ player.y=0; player.vy=0; }
+    player.vy += GRAVITY;
+    player.y += player.vy;
+    player.onGround = false;
+    if (player.y < 0) {
+        player.y = 0;
+        player.vy = 0;
+    }
 
-// Kollisionsabfrage
-for(let obs of obstacles){
-    if(obs.type==="block" || obs.type==="topBlock"){
-        if(player.x<obs.x+obs.width && player.x+PLAYER_WIDTH>obs.x &&
-           player.y<obs.y+obs.height && player.y+PLAYER_HEIGHT>obs.y){
-            state="gameover";
-        }
-    } else if(obs.type==="ramp" || obs.type==="bluePlatform"){
-        let rampTopY = obs.type==="ramp"? obs.y - (player.x-obs.x)*(obs.height/obs.width) : obs.y;
-        if(player.y+PLAYER_HEIGHT>rampTopY && player.y+PLAYER_HEIGHT<rampTopY+20 &&
-           player.x+PLAYER_WIDTH>obs.x && player.x<obs.x+obs.width &&
-           player.vy >=0){
-            player.y = rampTopY-PLAYER_HEIGHT;
-            player.vy=0;
-            player.onGround=true;
+    for(let obs of obstacles){
+        if(obs.type==="block" || obs.type==="topBlock"){
+            if(player.x<obs.x+obs.width && player.x+PLAYER_WIDTH>obs.x &&
+               player.y<obs.y+obs.height && player.y+PLAYER_HEIGHT>obs.y){
+                state="gameover";
+            }
+        } else if(obs.type==="ramp" || obs.type==="bluePlatform"){
+            let rampTopY = obs.type==="ramp"? obs.y - (player.x-obs.x)*(obs.height/obs.width) : obs.y;
+            if(player.y+PLAYER_HEIGHT>rampTopY && player.y+PLAYER_HEIGHT<rampTopY+20 &&
+               player.x+PLAYER_WIDTH>obs.x && player.x<obs.x+obs.width &&
+               player.vy >=0){
+                player.y = rampTopY-PLAYER_HEIGHT;
+                player.vy = 0;
+                player.onGround = true;
+            }
         }
     }
-}
 
-if(player.y+PLAYER_HEIGHT>BASELINE){ player.y=BASELINE-PLAYER_HEIGHT; player.vy=0; player.onGround=true; }
-
-obstacles=obstacles.filter(obs=>obs.x+obs.width>0);
-obstacles.forEach(obs=>obs.x-=currentSpeed);
-
-score+=0.01;
-
-// Münzen spawnen
-if(Math.random()<0.01) spawnCoin(canvas.width, BASELINE-50-Math.random()*100);
-
-coinSpawns.forEach((coin,i)=>{
-    coin.x-=currentSpeed;
-    if(player.x+PLAYER_WIDTH>coin.x && player.x<coin.x+coin.size &&
-       player.y+PLAYER_HEIGHT>coin.y && player.y<coin.y+coin.size){
-        coins+=1; coinSpawns.splice(i,1); updateCoinsDisplay();
+    if(player.y+PLAYER_HEIGHT>BASELINE){
+        player.y = BASELINE-PLAYER_HEIGHT;
+        player.vy = 0;
+        player.onGround = true;
     }
-});
 
-coinSpawns = coinSpawns.filter(c=>c.x+c.size>0);
+    obstacles = obstacles.filter(obs => obs.x+obs.width>0);
+    obstacles.forEach(obs => obs.x -= currentSpeed);
 
-if(Math.random()<0.03) spawnObstacle();
-```
-
+    score += 0.01;
+    if(Math.random()<0.03) spawnObstacle();
 }
 
 function drawPlayer(){
-ctx.save();
-ctx.translate(player.x+PLAYER_WIDTH/2, player.y+PLAYER_HEIGHT/2);
-ctx.rotate(player.angle);
-ctx.fillStyle=player.color; ctx.shadowColor=player.color; ctx.shadowBlur=10;
-ctx.fillRect(-PLAYER_WIDTH/2+5,-PLAYER_HEIGHT/2,30,20);
-ctx.shadowBlur=0;
-ctx.fillStyle="#444"; ctx.beginPath();
-ctx.arc(-10,12,6,0,Math.PI*2); ctx.fill();
-ctx.beginPath();
-ctx.arc(20,12,6,0,Math.PI*2); ctx.fill();
-ctx.restore();
+    // fallback-Farbe, falls selectedCar aus dem Array gefallen ist
+    let color = "#0ff";
+    if(Number.isInteger(selectedCar) && cars[selectedCar] && cars[selectedCar].color) color = cars[selectedCar].color;
+
+    ctx.save();
+    ctx.translate(player.x + PLAYER_WIDTH/2, player.y + PLAYER_HEIGHT/2);
+    ctx.rotate(player.angle);
+
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 10;
+    ctx.fillRect(-PLAYER_WIDTH/2 + 5, -PLAYER_HEIGHT/2, 30, 20);
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = "#444";
+    ctx.beginPath(); ctx.arc(-10, 12, 6, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(20, 12, 6, 0, Math.PI*2); ctx.fill();
+
+    ctx.restore();
 }
 
 function drawObstacles(){
-obstacles.forEach(obs=>{
-if(obs.type==="block"){ ctx.fillStyle="#f33"; ctx.fillRect(obs.x,obs.y,obs.width,obs.height);
-ctx.fillStyle="#b00"; ctx.fillRect(obs.x,obs.y,obs.width/4,obs.height); ctx.strokeStyle="#800"; ctx.strokeRect(obs.x,obs.y,obs.width,obs.height);
-} else if(obs.type==="ramp"){ ctx.fillStyle="#ff0"; ctx.beginPath(); ctx.moveTo(obs.x,obs.y+obs.height); ctx.lineTo(obs.x+obs.width,obs.y); ctx.lineTo(obs.x+obs.width,obs.y+obs.height); ctx.closePath(); ctx.fill(); ctx.strokeStyle="#cc0"; ctx.stroke();
-} else if(obs.type==="bluePlatform"){ ctx.fillStyle="#00f"; ctx.fillRect(obs.x,obs.y,obs.width,obs.height); ctx.strokeStyle="#005"; ctx.strokeRect(obs.x,obs.y,obs.width,obs.height);
-} else if(obs.type==="topBlock"){ ctx.fillStyle="#f33"; ctx.fillRect(obs.x,obs.y,obs.width,obs.height); ctx.strokeStyle="#800"; ctx.strokeRect(obs.x,obs.y,obs.width,obs.height);}
-});
+    obstacles.forEach(obs=>{
+        if(obs.type==="block"){
+            ctx.fillStyle="#f33"; ctx.fillRect(obs.x,obs.y,obs.width,obs.height);
+            ctx.fillStyle="#b00"; ctx.fillRect(obs.x,obs.y,obs.width/4,obs.height);
+            ctx.strokeStyle="#800"; ctx.strokeRect(obs.x,obs.y,obs.width,obs.height);
+        } else if(obs.type==="ramp"){
+            ctx.fillStyle="#ff0"; ctx.beginPath();
+            ctx.moveTo(obs.x,obs.y+obs.height);
+            ctx.lineTo(obs.x+obs.width,obs.y);
+            ctx.lineTo(obs.x+obs.width,obs.y+obs.height);
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle="#cc0"; ctx.stroke();
+        } else if(obs.type==="bluePlatform"){
+            ctx.fillStyle="#00f";
+            ctx.fillRect(obs.x,obs.y,obs.width,obs.height);
+            ctx.strokeStyle="#005";
+            ctx.strokeRect(obs.x,obs.y,obs.width,obs.height);
+        } else if(obs.type==="topBlock"){
+            ctx.fillStyle="#f33";
+            ctx.fillRect(obs.x,obs.y,obs.width,obs.height);
+            ctx.strokeStyle="#800";
+            ctx.strokeRect(obs.x,obs.y,obs.width,obs.height);
+        }
+    });
 }
 
-function drawCoins(){ coinSpawns.forEach(coin=>{ ctx.fillStyle="#ff0"; ctx.beginPath(); ctx.arc(coin.x+coin.size/2,coin.y+coin.size/2,coin.size/2,0,Math.PI*2); ctx.fill(); }); }
-
 function drawBackground(){
-ctx.fillStyle="#111"; ctx.fillRect(0,0,canvas.width,canvas.height);
-ctx.fillStyle="#555"; bgStars.forEach(star=>{ ctx.fillRect(star.x,star.y,star.size,star.size); star.x-=star.speed; if(star.x<0) star.x=canvas.width; });
-ctx.strokeStyle="#0f0"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,BASELINE); ctx.lineTo(canvas.width,BASELINE); ctx.stroke();
+    ctx.fillStyle="#111"; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="#555";
+    bgStars.forEach(star=>{
+        ctx.fillRect(star.x,star.y,star.size,star.size);
+        star.x -= star.speed;
+        if(star.x<0) star.x=canvas.width;
+    });
+    ctx.strokeStyle="#0f0"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(0,BASELINE); ctx.lineTo(canvas.width,BASELINE); ctx.stroke();
 }
 
 function draw(){
-drawBackground(); drawObstacles(); drawPlayer(); drawCoins();
-ctx.textAlign="left";
+    drawBackground(); drawObstacles(); drawPlayer();
+    ctx.textAlign="left";
 
-```
-if(state==="start"){
-    ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
-    ctx.fillText("Mini Geometry Rider",canvas.width/2,150);
-    ctx.font="20px Arial"; ctx.fillText("Drücke Space oder tippe, um zu starten",canvas.width/2,200);
-} else if(state==="play"){
-    ctx.fillStyle="#fff"; ctx.font="20px Arial"; ctx.shadowColor="#0ff"; ctx.shadowBlur=5;
-    ctx.fillText("Score: "+Math.floor(score),10,30);
-    ctx.fillText("Highscore: "+Math.floor(highscore),10,60);
-    ctx.fillText("Coins: "+Math.floor(coins),10,90);
-    ctx.shadowBlur=0;
-} else if(state==="gameover"){
-    if(score>highscore){ highscore=Math.floor(score); localStorage.setItem("riderHighscore",highscore);}
-    ctx.fillStyle="rgba(0,0,0,0.7)"; ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
-    ctx.fillText("Game Over!",canvas.width/2,canvas.height/2-20);
-    ctx.font="20px Arial";
-    ctx.fillText("Score: "+Math.floor(score),canvas.width/2,canvas.height/2+10);
-    ctx.fillText("Highscore: "+Math.floor(highscore),canvas.width/2,canvas.height/2+40);
-    ctx.fillText("Tippe oder drücke R zum Neustart",canvas.width/2,canvas.height/2+70);
+    if(state==="start"){
+        ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
+        ctx.fillText("Mini Geometry Rider",canvas.width/2,150);
+        ctx.font="20px Arial"; ctx.fillText("Drücke Space oder tippe, um zu starten",canvas.width/2,200);
+        ctx.font="16px Arial"; ctx.fillText("Klicke oben rechts auf 'Shop öffnen' für Fahrzeuge",canvas.width/2,240);
+    } else if(state==="play"){
+        ctx.fillStyle="#fff"; ctx.font="20px Arial"; ctx.shadowColor="#0ff"; ctx.shadowBlur=5;
+        ctx.fillText("Score: "+Math.floor(score),10,30);
+        ctx.fillText("Highscore: "+Math.floor(highscore),10,60);
+        ctx.shadowBlur=0;
+    } else if(state==="gameover"){
+        if(score>highscore){ highscore=Math.floor(score); localStorage.setItem("riderHighscore",highscore);}
+        ctx.fillStyle="rgba(0,0,0,0.7)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
+        ctx.fillText("Game Over!",canvas.width/2,canvas.height/2-20);
+        ctx.font="20px Arial";
+        ctx.fillText("Score: "+Math.floor(score),canvas.width/2,canvas.height/2+10);
+        ctx.fillText("Highscore: "+Math.floor(highscore),canvas.width/2,canvas.height/2+40);
+        ctx.fillText("Tippe oder drücke R zum Neustart",canvas.width/2,canvas.height/2+70);
+    }
+    // Wenn state === "shop", der DOM-Overlay zeigt den Shop. Wir zeichnen trotzdem Hintergrund/Spiel.
 }
-```
 
+function openShop(){
+    state = "shop";
+    document.getElementById("shop").style.display = "block";
+    document.getElementById("coins").innerText = "Coins: " + Math.floor(score);
+
+    let html = "";
+    cars.forEach((c,i)=>{
+        let owned = ownedCars.includes(i);
+        let btn = "";
+        if(owned){
+            if(selectedCar === i){
+                btn = `<button disabled style="opacity:0.6;">Ausgewählt</button>`;
+            } else {
+                btn = `<button onclick="selectCar(${i})">Wählen</button>`;
+            }
+        } else {
+            btn = `<button onclick="buyCar(${i})">Kaufen (${c.price})</button>`;
+        }
+        html += `<div class="shopItem"><span style="color:${c.color}; font-size:20px;">■</span><div class="name">${c.name}</div>${btn}</div>`;
+    });
+
+    document.getElementById("carList").innerHTML = html;
+}
+
+function closeShop(){
+    document.getElementById("shop").style.display = "none";
+    state = "start";
+}
+
+function buyCar(id){
+    if(Math.floor(score) < cars[id].price){
+        alert("Zu wenig Coins!");
+        return;
+    }
+    if(!ownedCars.includes(id)) ownedCars.push(id);
+    localStorage.setItem("ownedCars", JSON.stringify(ownedCars));
+    openShop();
+}
+
+function selectCar(id){
+    selectedCar = id;
+    localStorage.setItem("selectedCar", id);
+    openShop();
 }
 
 function gameLoop(){ update(); draw(); requestAnimationFrame(gameLoop); }
 
 // --- Eingaben ---
 document.addEventListener("keydown",(e)=>{
-if(e.code==="Space" || e.code==="ArrowUp"){
-if(state==="start"){ state="play"; resetGame(); return; }
-if(state==="play" && !isHolding) player.vy=JUMP_FORCE;
-isHolding=true;
-}
-if(e.code==="KeyR" && state==="gameover"){ state="start"; }
+    if(e.code==="Space" || e.code==="ArrowUp"){
+        if(state==="start"){ state="play"; resetGame(); return; }
+        if(state==="play" && !isHolding) player.vy=JUMP_FORCE;
+        isHolding=true;
+    }
+    if(e.code==="KeyR" && state==="gameover"){ state="start"; }
+    if(e.code==="KeyS" && state==="start"){ openShop(); } // zusätzliche Shortcut
 });
 document.addEventListener("keyup",(e)=>{ if(e.code==="Space" || e.code==="ArrowUp") isHolding=false; });
 
 document.addEventListener("touchstart",()=>{
-if(state==="start"){ state="play"; resetGame(); return; }
-if(state==="gameover"){ state="start"; return; }
-if(!isHolding) player.vy=JUMP_FORCE;
-isHolding=true;
+    if(state==="start"){ state="play"; resetGame(); return; }
+    if(state==="gameover"){ state="start"; return; }
+    if(!isHolding) player.vy=JUMP_FORCE;
+    isHolding=true;
 });
 document.addEventListener("touchend",()=>{ isHolding=false; });
 
-gameLoop(); </script>
+// Shop-Button
+document.getElementById("shopButton").addEventListener("click", () => {
+    openShop();
+});
 
+gameLoop();
+</script>
 </body>
 </html>
