@@ -349,34 +349,49 @@ function draw(){
 }
 
 function openShop(){
-    state = "shop";
-    document.getElementById("shop").style.display = "block";
-    document.getElementById("coins").innerText = "Coins: " + coins;
+state = "shop";
+document.getElementById("shop").style.display = "block";
+document.getElementById("coins").innerText = "Coins: " + coins;
 
-
-    let html = "";
-    cars.forEach((c,i)=>{
-        let owned = ownedCars.includes(i);
-        let btn = "";
-        if(owned){
-            if(selectedCar === i){
-                btn = `<button disabled style="opacity:0.6;">Ausgewählt</button>`;
-            } else {
-                btn = `<button onclick="selectCar(${i})">Wählen</button>`;
-            }
+```
+let html = "";
+cars.forEach((c,i)=>{
+    let owned = ownedCars.includes(i);
+    let btn = "";
+    if(owned){
+        if(selectedCar === i){
+            btn = `<button disabled style="opacity:0.6;">Ausgewählt</button>`;
         } else {
-            btn = `<button onclick="buyCar(${i})">Kaufen (${c.price})</button>`;
+            btn = `<button onclick="selectCar(${i})">Wählen</button>`;
         }
-        html += `<div class="shopItem"><span style="color:${c.color}; font-size:20px;">■</span><div class="name">${c.name}</div>${btn}</div>`;
-    });
+    } else {
+        btn = `<button onclick="buyCar(${i})">Kaufen (${c.price})</button>`;
+    }
 
-    document.getElementById("carList").innerHTML = html;
+    // Farbliche Markierung nach Seltenheit
+    let rarityColor = "#fff"; // Standard fallback
+    switch(c.rarity){
+        case "Standard": rarityColor="#0f0"; break;
+        case "Selten": rarityColor="#00f"; break;
+        case "Episch": rarityColor="#a0f"; break;
+        case "Mythisch": rarityColor="#f00"; break;
+        case "Legendär": rarityColor="#ff0"; break;
+        case "Oktopus": rarityColor="#fa0"; break;
+    }
+
+    html += `<div class="shopItem">
+                <span style="color:${c.color}; font-size:20px;">■</span>
+                <div class="name">${c.name}</div>
+                <div style="color:${rarityColor}; font-weight:bold; min-width:80px;">${c.rarity}</div>
+                ${btn}
+             </div>`;
+});
+
+document.getElementById("carList").innerHTML = html;
+```
+
 }
 
-function closeShop(){
-    document.getElementById("shop").style.display = "none";
-    state = "start";
-}
 
 function buyCar(id){
     if (coins < cars[id].price) {
