@@ -388,6 +388,11 @@ function openShop(){
     document.getElementById("carList").innerHTML = html;
 }
 
+    function closeShop(){
+state = "start"; // oder play, wenn du direkt weiterspielen willst
+document.getElementById("shop").style.display = "none";
+}
+
 function buyCar(id){
     if (coins < cars[id].price) {
     alert("Zu wenig Coins!");
