@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mini Geometry Rider</title>
 <style>
-body { margin:0; overflow:hidden; background:#111; font-family:Arial,sans-serif; cursor: url("cursor.png") 4 4, auto; }
+body { margin:0; overflow:hidden; background:#111; font-family:Verdana,sans-serif; cursor: url("cursor.png") 4 4, auto; }
 canvas { display:block; margin:0 auto; background:#111; }
 #shop {
     display: none; /* versteckt den Shop initial */
@@ -59,67 +59,69 @@ const BASELINE = canvas.height-40;
 
 // --- Shop (Daten) ---
 const cars = [
-{id:0, name:"Greenline Classic", rarity:"Standard", price:0, color:"#0f0"},
-{id:1, name:"Urban Runner", rarity:"Standard", price:150, color:"#3af"},
-{id:2, name:"Street Breeze", rarity:"Standard", price:220, color:"#ff0"},
-{id:3, name:"Neon Hopper", rarity:"Standard", price:300, color:"#f0f"},
-{id:4, name:"Turbo Rookie", rarity:"Standard", price:380, color:"#fa0"},
-{id:5, name:"Comet Lite", rarity:"Standard", price:450, color:"#fff"},
-{id:6, name:"Silver Pulse", rarity:"Selten", price:650, color:"#ccc"},
-{id:7, name:"Aero Swift", rarity:"Selten", price:720, color:"#9cf"},
-{id:8, name:"Velo Strider", rarity:"Selten", price:800, color:"#bfb"},
-{id:9, name:"Quartz Rider", rarity:"Selten", price:920, color:"#fc9"},
-{id:10, name:"Trail Dancer", rarity:"Selten", price:1040, color:"#f99"},
-{id:11, name:"Chrome Sprint", rarity:"Selten", price:1180, color:"#9ff"},
-{id:12, name:"Crystal Edge", rarity:"Selten", price:1300, color:"#cdf"},
-{id:13, name:"Solar Trail S", rarity:"Selten", price:1450, color:"#fd6"},
-{id:14, name:"Pyroflare V1", rarity:"Episch", price:1700, color:"#f55"},
-{id:15, name:"Astra Cyclone", rarity:"Episch", price:1950, color:"#5af"},
-{id:16, name:"Voltrush EX", rarity:"Episch", price:2200, color:"#5ff"},
-{id:17, name:"Thunder Rift", rarity:"Episch", price:2500, color:"#ccf"},
-{id:18, name:"Nova Phantom", rarity:"Episch", price:2800, color:"#fff"},
-{id:19, name:"Plasma Rider", rarity:"Episch", price:3100, color:"#39f"},
-{id:20, name:"Ignite Spectre", rarity:"Episch", price:3450, color:"#f33"},
-{id:21, name:"Cryo Phantom", rarity:"Episch", price:3800, color:"#0ff"},
-{id:22, name:"Lunar Stride", rarity:"Episch", price:4250, color:"#ddd"},
-{id:23, name:"Eclipse Wraith", rarity:"Mythisch", price:4800, color:"#333"},
-{id:24, name:"Vortex Ascendant", rarity:"Mythisch", price:5400, color:"#8df"},
-{id:25, name:"Starforge MK-II", rarity:"Mythisch", price:6100, color:"#dd0"},
-{id:26, name:"Nebula Phantom", rarity:"Mythisch", price:6800, color:"#a0f"},
-{id:27, name:"Pyrocore Zenith", rarity:"Mythisch", price:7600, color:"#f00"},
-{id:28, name:"Solarstorm X", rarity:"Mythisch", price:8500, color:"#ff5"},
-{id:29, name:"Ion Tempest", rarity:"Mythisch", price:9400, color:"#9ff"},
-{id:30, name:"Radiant Howler", rarity:"Mythisch", price:10300, color:"#fff"},
-{id:31, name:"Obsidian Monarch", rarity:"Legendär", price:11800, color:"#111"},
-{id:32, name:"Quantum Sovereign", rarity:"Legendär", price:13400, color:"#acf"},
-{id:33, name:"Titanfall Ascendant", rarity:"Legendär", price:15100, color:"#ff9"},
-{id:34, name:"Aurelion Vanguard", rarity:"Legendär", price:16900, color:"#ffd700"},
-{id:35, name:"Eternal Starborn", rarity:"Legendär", price:18800, color:"#fff"},
-{id:36, name:"Okto-Wave", rarity:"Oktopus", price:9000, color:"#6af"},
-{id:37, name:"Inkjet Surge", rarity:"Oktopus", price:11200, color:"#48c"},
-{id:38, name:"Kraken Drift", rarity:"Oktopus", price:13900, color:"#24a"},
-{id:39, name:"Okto-Prime", rarity:"Oktopus", price:15800, color:"#04f"}
+{name:"Greenline Classic", rarity:"Standard", price:0, color:"#0f0"},
+{name:"Urban Runner", rarity:"Standard", price:150, color:"#3af"},
+{name:"Street Breeze", rarity:"Standard", price:220, color:"#ff0"},
+{name:"Neon Hopper", rarity:"Standard", price:300, color:"#f0f"},
+{name:"Turbo Rookie", rarity:"Standard", price:380, color:"#fa0"},
+{name:"Comet Lite", rarity:"Standard", price:450, color:"#fff"},
+{name:"Silver Pulse", rarity:"Selten", price:650, color:"#ccc"},
+{name:"Aero Swift", rarity:"Selten", price:720, color:"#9cf"},
+{name:"Velo Strider", rarity:"Selten", price:800, color:"#bfb"},
+{name:"Quartz Rider", rarity:"Selten", price:920, color:"#fc9"},
+{name:"Trail Dancer", rarity:"Selten", price:1040, color:"#f99"},
+{name:"Chrome Sprint", rarity:"Selten", price:1180, color:"#9ff"},
+{name:"Crystal Edge", rarity:"Selten", price:1300, color:"#cdf"},
+{name:"Solar Trail S", rarity:"Selten", price:1450, color:"#fd6"},
+{name:"Pyroflare V1", rarity:"Episch", price:1700, color:"#f55"},
+{name:"Astra Cyclone", rarity:"Episch", price:1950, color:"#5af"},
+{name:"Voltrush EX", rarity:"Episch", price:2200, color:"#5ff"},
+{name:"Thunder Rift", rarity:"Episch", price:2500, color:"#ccf"},
+{name:"Nova Phantom", rarity:"Episch", price:2800, color:"#fff"},
+{name:"Plasma Rider", rarity:"Episch", price:3100, color:"#39f"},
+{name:"Ignite Spectre", rarity:"Episch", price:3450, color:"#f33"},
+{name:"Cryo Phantom", rarity:"Episch", price:3800, color:"#0ff"},
+{name:"Lunar Stride", rarity:"Episch", price:4250, color:"#ddd"},
+{name:"Eclipse Wraith", rarity:"Mythisch", price:4800, color:"#333"},
+{name:"Vortex Ascendant", rarity:"Mythisch", price:5400, color:"#8df"},
+{name:"Starforge MK-II", rarity:"Mythisch", price:6100, color:"#dd0"},
+{name:"Nebula Phantom", rarity:"Mythisch", price:6800, color:"#a0f"},
+{name:"Pyrocore Zenith", rarity:"Mythisch", price:7600, color:"#f00"},
+{name:"Solarstorm X", rarity:"Mythisch", price:8500, color:"#ff5"},
+{name:"Ion Tempest", rarity:"Mythisch", price:9400, color:"#9ff"},
+{name:"Radiant Howler", rarity:"Mythisch", price:10300, color:"#fff"},
+{name:"Obsidian Monarch", rarity:"Legendär", price:11800, color:"#111"},
+{name:"Quantum Sovereign", rarity:"Legendär", price:13400, color:"#acf"},
+{name:"Titanfall Ascendant", rarity:"Legendär", price:15100, color:"#ff9"},
+{name:"Aurelion Vanguard", rarity:"Legendär", price:16900, color:"#ffd700"},
+{name:"Eternal Starborn", rarity:"Legendär", price:18800, color:"#fff"},
+{name:"Okto-Wave", rarity:"Oktopus", price:9000, color:"#6af"},
+{name:"Inkjet Surge", rarity:"Oktopus", price:11200, color:"#48c"},
+{name:"Kraken Drift", rarity:"Oktopus", price:13900, color:"#24a"},
+{name:"Okto-Prime", rarity:"Oktopus", price:15800, color:"#04f"}
 ];
 
 // sichere Initialisierung von ownedCars (immer Array mit Zahlen)
-// --- Gespeicherte Autos ---
 let ownedCarsRaw = localStorage.getItem("ownedCars");
 let ownedCars;
-try {
+try{
     ownedCars = ownedCarsRaw ? JSON.parse(ownedCarsRaw) : [0];
     if(!Array.isArray(ownedCars)) ownedCars = [0];
     ownedCars = ownedCars.map(n => parseInt(n)).filter(n => !isNaN(n));
     if(ownedCars.length === 0) ownedCars = [0];
-} catch(e) {
+}catch(e){
     ownedCars = [0];
     localStorage.setItem("ownedCars", JSON.stringify(ownedCars));
 }
 
-// --- Aktuelles Auto ---
+// sichere Initialisierung selectedCar
 let selRaw = localStorage.getItem("selectedCar");
 let selectedCar = parseInt(selRaw);
 if(isNaN(selectedCar) || selectedCar < 0 || selectedCar >= cars.length) selectedCar = 0;
 
+// highscore als Zahl
+let highscore = parseInt(localStorage.getItem("riderHighscore"));
+if(isNaN(highscore)) highscore = 0;
 
 // --- Spielzustände ---
 let state = "start"; // "start", "play", "gameover", "shop"
@@ -356,8 +358,8 @@ function draw(){
     if(state==="start"){
         ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
         ctx.fillText("Mini Geometry Rider",canvas.width/2,150);
-        ctx.font="20px Arial"; ctx.fillText("Drücke Space oder tippe, um zu starten",canvas.width/2,200);
-        ctx.font="16px Arial"; ctx.fillText("Klicke oben rechts auf 'Shop öffnen' für Fahrzeuge",canvas.width/2,240);
+        ctx.font="20px Verdana"; ctx.fillText("Drücke Space oder tippe, um zu starten",canvas.width/2,200);
+        ctx.font="16px Verdana"; ctx.fillText("Klicke oben rechts auf 'Shop öffnen' für Fahrzeuge",canvas.width/2,240);
     } else if(state==="play"){
         ctx.fillStyle="#fff"; ctx.font="20px Verdana"; ctx.shadowColor="#0ff"; ctx.shadowBlur=5;
         ctx.fillText("Score: "+Math.floor(score),10,30);
@@ -370,7 +372,7 @@ function draw(){
         ctx.fillStyle="rgba(0,0,0,0.7)"; ctx.fillRect(0,0,canvas.width,canvas.height);
         ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
         ctx.fillText("Game Over!",canvas.width/2,canvas.height/2-20);
-        ctx.font="20px Arial";
+        ctx.font="20px Verdana";
         ctx.fillText("Score: "+Math.floor(score),canvas.width/2,canvas.height/2+10);
         ctx.fillText("Highscore: "+Math.floor(highscore),canvas.width/2,canvas.height/2+40);
         ctx.fillText("Aktuelle Coins: " + coins, 10, 90);
