@@ -164,29 +164,48 @@ const promoCodes = {
 
 // Code einlösen
 function redeemCode(input) {
-    const code = input.toUpperCase();
-    const reward = promoCodes[code];
+const code = input.toUpperCase();
+const reward = promoCodes[code];
+if (!reward) {
+alert("Ungültiger Code!");
+return;
+}
+// --- eingelöste Codes aus LocalStorage laden ---
+let usedCodesRaw = localStorage.getItem("usedPromoCodes");
+let usedCodes;
+try {
+    usedCodes = usedCodesRaw ? JSON.parse(usedCodesRaw) : [];
+    if(!Array.isArray(usedCodes)) usedCodes = [];
+} catch(e) {
+    usedCodes = [];
+}
 
-    if (!reward) {
-        alert("Ungültiger Code!");
-        return;
-    }
+// --- prüfen, ob Code schon eingelöst ---
+if(usedCodes.includes(code)) {
+    alert("Dieser Code wurde bereits eingelöst!");
+    return;
+}
 
-    let msg = "Code eingelöst!";
+// --- Code anwenden ---
+let msg = "Code eingelöst!";
 
-    if (reward.coins) {
-        coins += reward.coins;
-        localStorage.setItem("coins", coins);
-        msg += ` Du hast ${reward.coins} Coins erhalten.`;
-    }
+if (reward.coins) {
+    coins += reward.coins;
+    localStorage.setItem("coins", coins);
+    msg += ` Du hast ${reward.coins} Coins erhalten.`;
+}
 
-    if (reward.carId != null && !ownedCars.includes(reward.carId)) {
-        ownedCars.push(reward.carId);
-        localStorage.setItem("ownedCars", JSON.stringify(ownedCars));
-        msg += ` Du hast das Fahrzeug ${cars[reward.carId].name} freigeschaltet!`;
-    }
+if (reward.carId != null && !ownedCars.includes(reward.carId)) {
+    ownedCars.push(reward.carId);
+    localStorage.setItem("ownedCars", JSON.stringify(ownedCars));
+    msg += ` Du hast das Fahrzeug ${cars[reward.carId].name} freigeschaltet!`;
+}
 
-    alert(msg);
+// --- Code als eingelöst speichern ---
+usedCodes.push(code);
+localStorage.setItem("usedPromoCodes", JSON.stringify(usedCodes));
+
+alert(msg);
 }
 
 function spawnObstacle(){
