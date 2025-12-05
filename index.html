@@ -98,10 +98,10 @@ const cars = [
 {name:"Titanfall Ascendant", rarity:"Legendär", price:15100, color:"#ff9"},
 {name:"Aurelion Vanguard", rarity:"Legendär", price:16900, color:"#ffd700"},
 {name:"Eternal Starborn", rarity:"Legendär", price:18800, color:"#fff"},
-{name:"Okto-Wave", rarity:"Oktopus", price:9000, color:"#6af"},
-{name:"Inkjet Surge", rarity:"Oktopus", price:11200, color:"#48c"},
-{name:"Kraken Drift", rarity:"Oktopus", price:13900, color:"#24a"},
-{name:"Okto-Prime", rarity:"Oktopus", price:15800, color:"#04f"}
+{name:"Okto-Wave", rarity:"Oktopus", price:20500, color:"#6af"},
+{name:"Inkjet Surge", rarity:"Oktopus", price:23800, color:"#48c"},
+{name:"Kraken Drift", rarity:"Oktopus", price:25500, color:"#24a"},
+{name:"Okto-Prime", rarity:"Oktopus", price:31000, color:"#04f"}
 ];
 
 // sichere Initialisierung von ownedCars (immer Array mit Zahlen)
@@ -412,6 +412,7 @@ function openShop(){
             case "Mythisch": rarityColor="#f00"; break;
             case "Legendär": rarityColor="#ff0"; break;
             case "Oktopus": rarityColor="#fa0"; break;
+            case "Secret": rarityColor="#fff"; break;
         }
 
         html += `<div class="shopItem">
