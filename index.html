@@ -66,35 +66,6 @@ button, input {
 </div>
 
 <button id="shopButton">Shop öffnen</button>
-<button id="pauseButton" style="
-    position:absolute; top:10px; left:10px;
-    padding:10px 20px; font-size:18px;
-    border-radius:8px; background:#222; color:#fff;
-    border:none; cursor:pointer; z-index:50;
-">Pause</button>
-
-<div id="pauseMenu" style="
-    display:none; position:fixed; top:0; left:0;
-    width:100%; height:100%; z-index:100;
-    background:rgba(0,0,0,0.7); backdrop-filter: blur(4px);
-    display:flex; flex-direction:column;
-    justify-content:center; align-items:center;
-    font-family:Verdana; color:white;
-">
-    <h1 style="margin-bottom:20px;">Pause</h1>
-
-    <button onclick="resumeGame()" style="
-        padding:12px 25px; font-size:20px; border-radius:10px;
-        border:none; background:#28a745; color:white;
-        cursor:pointer; margin-bottom:15px;
-    ">Weiter</button>
-
-    <button onclick="openSettings()" style="
-        padding:12px 25px; font-size:20px; border-radius:10px;
-        border:none; background:#444; color:white;
-        cursor:pointer;
-    ">Einstellungen</button>
-</div>
 
 <script>
 const canvas = document.getElementById("gameCanvas");
@@ -192,7 +163,6 @@ for(let i=0;i<100;i++) bgStars.push({x:Math.random()*canvas.width, y:Math.random
 // --- Coins ---
 let coins = parseInt(localStorage.getItem("coins") || "0");
 let coinObjects = [];
-let isPaused = false;
 
 
 // --- Funktionen ---
@@ -239,17 +209,6 @@ function redeemCode(input) {
     alert(msg);
 }
 
-function togglePause() {
-    isPaused = true;
-    document.getElementById("pauseMenu").style.display = "flex";
-}
-function resumeGame() {
-    isPaused = false;
-    document.getElementById("pauseMenu").style.display = "none";
-}
-function openSettings() {
-    alert("Einstellungen kommen später!");
-}
 
 function spawnObstacle(){
     let r = Math.random();
@@ -278,8 +237,6 @@ function resetGame(){
 }
 
 function update(){
-    
-    if (isPaused) return;
     if(state!=="play") return;
 
     let currentSpeed = speed;
@@ -621,12 +578,7 @@ document.addEventListener("touchend",()=>{ isHolding=false; });
 document.getElementById("shopButton").addEventListener("click", () => {
     openShop();
 });
-// Pause-Button
-document.getElementById("pauseButton").addEventListener("click", togglePause);
 
-// Eventuell noch Buttons im Pause-Menü:
-document.getElementById("continueBtn").addEventListener("click", continueGame);
-document.getElementById("settingsBtn").addEventListener("click", openSettings);
 gameLoop();
 </script>
 </body>
