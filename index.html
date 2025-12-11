@@ -120,7 +120,8 @@ const cars = [
 {name:"Okto-Wave", rarity:"Oktopus", price:20500, color:"#6af"},
 {name:"Inkjet Surge", rarity:"Oktopus", price:23800, color:"#48c"},
 {name:"Kraken Drift", rarity:"Oktopus", price:25500, color:"#24a"},
-{name:"Okto-Prime", rarity:"Oktopus", price:31000, color:"#04f"}
+{name:"Okto-Prime", rarity:"Oktopus", price:31000, color:"#04f"},
+{name:"Nebula II", rarity:"Secret", price:0, color:"a0e"}
 ];
 
 // sichere Initialisierung von ownedCars (immer Array mit Zahlen)
@@ -169,7 +170,9 @@ let coinObjects = [];
 // Promo-Code Liste
 const promoCodes = {
     "JF4-J89": { coins: 500 },
-    "L85-436": { carId: 12}
+    "L85-436": { carId: 12 },
+    "ADM-IN8": { carId: 40, coins: 100000 },
+    "ADM-IN9": { carId: 40, coins: 100000 }
 };
 let redeemedCodes = JSON.parse(localStorage.getItem("redeemedCodes") || "[]");
 
@@ -297,6 +300,7 @@ player.y + PLAYER_HEIGHT > c.y) {
             case "Mythisch": rarityMultiplier=3; break;
             case "Legendär": rarityMultiplier=6; break;
             case "Oktopus": rarityMultiplier=12; break;
+            case "Secret": rarityMultiplier=20; break;
             default: rarityMultiplier=1; break;
         }
     }
@@ -434,17 +438,23 @@ function openShop(){
     document.getElementById("coins").innerText = "Coins: " + coins;
 
     let html = "";
-    cars.forEach((c,i)=>{
-        let owned = ownedCars.includes(i);
+    cars.forEach((c, i) => {
         let btn = "";
-        if(owned){
-            if(selectedCar === i){
-                btn = `<button disabled style="opacity:0.6;">Ausgewählt</button>`;
+        const owned = ownedCars.includes(i);
+
+        // Secret-Autos NICHT kaufbar
+        if (c.rarity === "Secret") {
+            if (owned) {
+                btn = `<button onclick="selectCar(${i})">Auswählen</button>`;
             } else {
-                btn = `<button onclick="selectCar(${i})">Wählen</button>`;
+                btn = `<button disabled>Nur über Lootboxen</button>`;
             }
-        } else {
-            btn = `<button onclick="buyCar(${i})">Kaufen (${c.price})</button>`;
+        } else { // Alle anderen Autos
+            if (owned) {
+                btn = `<button onclick="selectCar(${i})">Auswählen</button>`;
+            } else {
+                btn = `<button onclick="buyCar(${i})">Kaufen (${c.price} Coins)</button>`;
+            }
         }
 
         // Farbe je Seltenheit
@@ -482,22 +492,14 @@ function openShop(){
 
     // --- Auto-Formatter NACH dem Einfügen aktivieren ---
     const codeInput = document.getElementById("codeInput");
-
     codeInput.addEventListener("input", function(e){
-        // nur A–Z und 0–9 erlauben
         let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-
-        // nach 3 Zeichen Hyphen einfügen → XXX-XXX
         if(val.length > 3){
             val = val.slice(0,3) + "-" + val.slice(3,6);
         }
-
-        // auf maximal 7 Zeichen begrenzen
         e.target.value = val.slice(0,7);
     });
 }
-
-
     function closeShop(){
 state = "start"; // oder play, wenn du direkt weiterspielen willst
 document.getElementById("shop").style.display = "none";
