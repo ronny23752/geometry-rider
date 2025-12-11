@@ -54,7 +54,7 @@ const user = params.get("user");
 
 if (user !== "admin") {
     // Seite blockieren oder Weiterleitung
-    document.body.innerHTML = "<h1>Access denied</h1>";
+    document.body.innerHTML = "<h1>Die Beta ist nur für Admins zugänglich</h1><p>Wärst du einer kämst du rein</p>";
 }
 
 const canvas = document.getElementById("gameCanvas");
@@ -109,7 +109,8 @@ const cars = [
 {name:"Okto-Wave", rarity:"Oktopus", price:9000, color:"#6af"},
 {name:"Inkjet Surge", rarity:"Oktopus", price:11200, color:"#48c"},
 {name:"Kraken Drift", rarity:"Oktopus", price:13900, color:"#24a"},
-{name:"Okto-Prime", rarity:"Oktopus", price:15800, color:"#04f"}
+{name:"Okto-Prime", rarity:"Oktopus", price:15800, color:"#04f"},
+{name:"Aeropus Secret Test", rarity:"Secret", price:15800, color:"#04f"}
 ];
 
 // sichere Initialisierung von ownedCars (immer Array mit Zahlen)
@@ -439,6 +440,7 @@ function openShop(){
             case "Mythisch": rarityColor="#f00"; break;
             case "Legendär": rarityColor="#ff0"; break;
             case "Oktopus": rarityColor="#fa0"; break;
+            case "Secret": rarityColor="#fff"; break;
         }
 
         html += `<div class="shopItem">
