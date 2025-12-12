@@ -500,7 +500,7 @@ function openShop(){
     // --- LOOTBOX BUTTON ---
     html += `<div style="margin-top:30px;">
                 <button onclick="openLootbox()" style="padding:10px 20px; font-size:20px; border-radius:10px;">
-                    Lootbox öffnen (500 Coins)
+                    Lootbox öffnen (1500 Coins)
                 </button>
              </div>`;
 
@@ -533,7 +533,7 @@ localStorage.setItem("coins", coins);
     openShop();
 }
 function openLootbox() {
-    const price = 500;
+    const price = 1500;
     if (coins < price) {
         alert("Zu wenig Coins für eine Lootbox!");
         return;
