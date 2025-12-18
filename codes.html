@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Promo-Code Admin</title>
+<style>
+body { font-family: Verdana; background:#111; color:#fff; padding:40px; }
+input, button { padding:8px; font-size:14px; margin:6px 0; }
+button { cursor:pointer; }
+#admin { display:none; }
+pre { background:#000; padding:12px; color:#0f0; max-height:300px; overflow:auto; }
+</style>
+</head>
+<body>
+
+<h1>Promo-Code Verwaltung</h1>
+
+<!-- LOGIN -->
+<div id="login">
+  <p>Admin-Passwort:</p>
+  <input type="password" id="pw">
+  <br>
+  <button onclick="login()">Anmelden</button>
+  <p id="loginMsg"></p>
+</div>
+
+<!-- ADMIN -->
+<div id="admin">
+  <h2>Code hinzufügen (XXX-XXX)</h2>
+
+  <input id="code" placeholder="ABC-123"><br>
+  <input id="coins" type="number" placeholder="Coins"><br>
+  <input id="carId" type="number" placeholder="Car-ID (leer = null)"><br>
+
+  <button onclick="addCode()">Code hinzufügen</button>
+  <button onclick="downloadJSON()">JSON herunterladen</button>
+
+  <h3>promoCodes.json Vorschau</h3>
+  <pre id="output">{}</pre>
+</div>
+
+<script>
+// 🔐 Passwort-Hash
+const PASSWORD_HASH =
+"2ffb0f94326c08f38a04dc0b4d80b7f2c1db2a6b61b3451ed135bd5ce6d0b094";
+
+let promoCodes = {};
+
+// LOGIN
+async function login(){
+  const pw = document.getElementById("pw").value;
+  const hash = await sha256(pw);
+
+  if(hash === PASSWORD_HASH){
+    document.getElementById("login").style.display = "none";
+    document.getElementById("admin").style.display = "block";
+    loadJSON();
+  } else {
+    document.getElementById("loginMsg").innerText = "❌ Falsches Passwort";
+  }
+}
+
+// CODE FORMATIERUNG: XXX-XXX
+const codeInput = document.getElementById("code");
+codeInput.addEventListener("input", () => {
+  let val = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if(val.length > 3){
+    val = val.slice(0,3) + "-" + val.slice(3,6);
+  }
+  codeInput.value = val.slice(0,7);
+});
+
+// JSON laden
+function loadJSON(){
+  fetch('promoCodes.json')
+    .then(res => res.json())
+    .then(json => {
+      promoCodes = json;
+      updateOutput();
+    })
+    .catch(err => {
+      console.log("Keine bestehende JSON gefunden, neue Datei wird erstellt.");
+      promoCodes = {};
+      updateOutput();
+    });
+}
+
+// Code hinzufügen
+function addCode(){
+  const code = codeInput.value;
+  if(!/^[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(code)){
+    alert("Code muss exakt XXX-XXX sein!");
+    return;
+  }
+
+  const coins = parseInt(document.getElementById("coins").value) || 0;
+  const carIdRaw = document.getElementById("carId").value;
+
+  promoCodes[code] = {
+    coins: coins,
+    carId: carIdRaw === "" ? null : parseInt(carIdRaw)
+  };
+
+  updateOutput();
+
+  // Felder leeren
+  codeInput.value = "";
+  document.getElementById("coins").value = "";
+  document.getElementById("carId").value = "";
+}
+
+// JSON-Vorschau aktualisieren
+function updateOutput(){
+  document.getElementById("output").innerText = JSON.stringify(promoCodes, null, 2);
+}
+
+// JSON herunterladen
+function downloadJSON(){
+  const blob = new Blob([JSON.stringify(promoCodes, null, 2)], {type: "application/json"});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = "promoCodes.json";
+  link.click();
+}
+
+// SHA-256
+async function sha256(text){
+  const data = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(hash)]
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+</script>
+
+</body>
+</html>
