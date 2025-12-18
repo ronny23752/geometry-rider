@@ -169,13 +169,19 @@ let coinObjects = [];
 
 
 // --- Funktionen ---
-// Promo-Code Liste
-const promoCodes = {
-"ABC-DEF": { coins: 8000000000, carId: 42}
-};
+let promoCodes = {}; // wird aus JSON geladen
 let redeemedCodes = JSON.parse(localStorage.getItem("redeemedCodes") || "[]");
 
-// Code einlösen
+// Codes aus JSON laden
+fetch("promoCodes.json")
+  .then(res => res.json())
+  .then(data => {
+    promoCodes = data;
+    console.log("Promo-Codes geladen:", promoCodes);
+  })
+  .catch(err => console.error("Fehler beim Laden der Codes:", err));
+
+// Funktion zum Einlösen von Codes
 function redeemCode(input) {
     const code = input.toUpperCase();
     const reward = promoCodes[code];
@@ -185,7 +191,6 @@ function redeemCode(input) {
         return;
     }
 
-    // --- NEU: Prüfen, ob Code schon eingelöst wurde ---
     if (redeemedCodes.includes(code)) {
         alert("Dieser Code wurde bereits verwendet!");
         return;
@@ -205,12 +210,12 @@ function redeemCode(input) {
         msg += ` Du hast das Fahrzeug ${cars[reward.carId].name} freigeschaltet!`;
     }
 
-    // --- NEU: Code als benutzt speichern ---
     redeemedCodes.push(code);
     localStorage.setItem("redeemedCodes", JSON.stringify(redeemedCodes));
 
     alert(msg);
 }
+
 
 
 function spawnObstacle(){
