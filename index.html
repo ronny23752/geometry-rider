@@ -125,7 +125,7 @@ const cars = [
 {name:"Nebula II", rarity:"Secret", price:0, color:"#a0e"},
 {name:"AaronGirl Rider", rarity:"Secret", price:0, color:"000"},
 {name:"Admin Rider", rarity:"Secret", price:0, color:"#a0e"},
-{name:"2026", rarity:"Secret 2", price:2026, color:"#ffa"}
+{name:"2026", rarity:"Event Car", price:2026, color:"#ffa"}
 ];
 
 // sichere Initialisierung von ownedCars (immer Array mit Zahlen)
@@ -307,6 +307,7 @@ player.y + PLAYER_HEIGHT > c.y) {
             case "Legendär": rarityMultiplier=6; break;
             case "Oktopus": rarityMultiplier=12; break;
             case "Secret": rarityMultiplier=20; break;
+            case "Event Car": rarityMultiplier=67; break;    
             default: rarityMultiplier=1; break;
         }
     }
@@ -480,6 +481,7 @@ function openShop(){
             case "Legendär": rarityColor="#ff0"; break;
             case "Oktopus": rarityColor="#fa0"; break;
             case "Secret": rarityColor="#fff"; break;
+            case "Event Car": rarityColor="#fff"; break;
         }
 
         html += `<div class="shopItem">
