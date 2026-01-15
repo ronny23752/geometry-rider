@@ -82,12 +82,12 @@ const BASELINE = canvas.height-40;
 
 // --- Shop (Daten) ---
 const cars = [
-{name:"Greenline Classic", rarity:"Standard", price:0, color:"#0f0"},
-{name:"Urban Runner", rarity:"Standard", price:150, color:"#3af"},
-{name:"Street Breeze", rarity:"Standard", price:220, color:"#ff0"},
-{name:"Neon Hopper", rarity:"Standard", price:300, color:"#f0f"},
-{name:"Turbo Rookie", rarity:"Standard", price:380, color:"#fa0"},
-{name:"Comet Lite", rarity:"Standard", price:450, color:"#fff"},
+{name:"Greenline Classic", rarity:"Standard III", price:0, color:"#0f0"},
+{name:"Urban Runner", rarity:"Standard III", price:150, color:"#3af"},
+{name:"Street Breeze", rarity:"Standard II", price:220, color:"#ff0"},
+{name:"Neon Hopper", rarity:"Standard II", price:300, color:"#f0f"},
+{name:"Turbo Rookie", rarity:"Standard I", price:380, color:"#fa0"},
+{name:"Comet Lite", rarity:"Standard I", price:450, color:"#fff"},
 {name:"Silver Pulse", rarity:"Selten", price:650, color:"#ccc"},
 {name:"Aero Swift", rarity:"Selten", price:720, color:"#9cf"},
 {name:"Velo Strider", rarity:"Selten", price:800, color:"#bfb"},
@@ -498,6 +498,9 @@ function openShop(){
         // Farbe je Seltenheit
         let rarityColor = "#fff";
         switch(c.rarity){
+            case "Standard III": rarityColor="#0f0"; break;
+            case "Standard II": rarityColor="#0f0"; break;
+            case "Standard I": rarityColor="#0f0"; break;
             case "Standard": rarityColor="#0f0"; break;
             case "Selten": rarityColor="#00f"; break;
             case "Episch": rarityColor="#a0f"; break;
