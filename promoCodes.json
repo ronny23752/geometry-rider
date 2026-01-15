@@ -1,4 +1,4 @@
 {
-  "ALC-S3X": { "carId": 1, "coins": 500 },
+  "ALC-S3X": { "carId": 1, "coins":-0 },
   "RON-NY1": { "carId": 65, "coins": 60000}
 }
